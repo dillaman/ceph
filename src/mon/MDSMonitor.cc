@@ -711,7 +711,7 @@ bool MDSMonitor::preprocess_command(MMonCommand *m)
           f->open_object_section("filesystem");
           {
             f->dump_string("name", pending_mdsmap.fs_name);
-            const char *md_pool_name = mon->osdmon()->osdmap.get_pool_name(pending_mdsmap.metadata_pool);
+            const string &md_pool_name = mon->osdmon()->osdmap.get_pool_name(pending_mdsmap.metadata_pool);
             /* Output both the names and IDs of pools, for use by
              * humans and machines respectively */
             assert(md_pool_name != NULL);
@@ -729,7 +729,7 @@ bool MDSMonitor::preprocess_command(MMonCommand *m)
             {
                 for (std::set<int64_t>::iterator dpi = pending_mdsmap.data_pools.begin();
                    dpi != pending_mdsmap.data_pools.end(); ++dpi) {
-                  const char *pool_name = mon->osdmon()->osdmap.get_pool_name(*dpi);
+                  const string &pool_name = mon->osdmon()->osdmap.get_pool_name(*dpi);
                   assert(pool_name != NULL);
                   f->dump_string("data_pool", pool_name);
                 }
@@ -744,13 +744,13 @@ bool MDSMonitor::preprocess_command(MMonCommand *m)
       f->flush(ds);
     } else {
       if (pending_mdsmap.get_enabled()) {
-        const char *md_pool_name = mon->osdmon()->osdmap.get_pool_name(pending_mdsmap.metadata_pool);
+        const string &md_pool_name = mon->osdmon()->osdmap.get_pool_name(pending_mdsmap.metadata_pool);
         assert(md_pool_name != NULL);
         
         ds << "name: " << pending_mdsmap.fs_name << ", metadata pool: " << md_pool_name << ", data pools: [";
         for (std::set<int64_t>::iterator dpi = pending_mdsmap.data_pools.begin();
            dpi != pending_mdsmap.data_pools.end(); ++dpi) {
-          const char *pool_name = mon->osdmon()->osdmap.get_pool_name(*dpi);
+          const string &pool_name = mon->osdmon()->osdmap.get_pool_name(*dpi);
           assert(pool_name != NULL);
           ds << pool_name << " ";
         }
@@ -933,7 +933,7 @@ bool MDSMonitor::management_command(
       r = -ENOENT;
       return true;
     } else if (p->is_erasure()) {
-      const char *pn = mon->osdmon()->osdmap.get_pool_name(data);
+      const string& pn = mon->osdmon()->osdmap.get_pool_name(data);
       assert(pn != NULL);
       ss << "pool '" << pn << "' (id '" << data << "')"
          << " is an erasure-code pool";
@@ -947,7 +947,7 @@ bool MDSMonitor::management_command(
       r = -ENOENT;
       return true;
     } else if (p->is_erasure()) {
-      const char *pn = mon->osdmon()->osdmap.get_pool_name(metadata);
+      const string& pn = mon->osdmon()->osdmap.get_pool_name(metadata);
       assert(pn != NULL);
       ss << "pool '" << pn << "' (id '" << metadata << "')"
          << " is an erasure-code pool";
