@@ -19,6 +19,7 @@
 #include "osdc/Journaler.h"
 #include "common/errno.h"
 #include "include/assert.h"
+#include "common/Finisher.h"
 
 #define dout_subsys ceph_subsys_journaler
 #undef dout_prefix
@@ -628,15 +629,26 @@ void Journaler::_wait_for_flush(Context *onsafe)
     ldout(cct, 10) << "flush nothing to flush, (prezeroing/prezero)/write/flush/safe pointers at " 
 	     << "(" << prezeroing_pos << "/" << prezero_pos << ")/" << write_pos << "/" << flush_pos << "/" << safe_pos << dendl;
     if (onsafe) {
-      onsafe->complete(0);
-      onsafe = 0;
+      if (finisher) {
+        finisher->queue(onsafe, 0);
+      } else {
+        onsafe->complete(0);
+      }
     }
     return;
   }
 
   // queue waiter
-  if (onsafe) 
-    waitfor_safe[write_pos].push_back(onsafe);
+  if (onsafe) {
+    if (finisher) {
+      // Assume the consumer of Journaler is naive and will hand us contexts that need
+      // calling outside of any locks in the current stack: wrap all contexts in a
+      // C_OnFinisher to ensure they've invoked safely.
+      waitfor_safe[write_pos].push_back(new C_OnFinisher(onsafe, finisher));
+    } else {
+      waitfor_safe[write_pos].push_back(onsafe);
+    }
+  }
 }  
 
 void Journaler::flush(Context *onsafe)

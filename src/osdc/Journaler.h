@@ -59,6 +59,7 @@
 class CephContext;
 class Context;
 class PerfCounters;
+class Finisher;
 
 typedef __u8 stream_format_t;
 
@@ -198,6 +199,7 @@ private:
   // me
   CephContext *cct;
   Mutex lock;
+  Finisher *finisher;
   Header last_written;
   Header last_committed;
   inodeno_t ino;
@@ -363,8 +365,9 @@ private:
   friend class C_EraseFinish;
 
 public:
-  Journaler(inodeno_t ino_, int64_t pool, const char *mag, Objecter *obj, PerfCounters *l, int lkey, SafeTimer *tim) : 
+  Journaler(inodeno_t ino_, int64_t pool, const char *mag, Objecter *obj, PerfCounters *l, int lkey, SafeTimer *tim, Finisher *f=NULL) : 
     cct(obj->cct), lock("Journaler"),
+    finisher(f),
     last_written(mag), last_committed(mag), 
     ino(ino_), pg_pool(pool), readonly(true),
     stream_format(-1), journal_stream(-1),
@@ -478,6 +481,7 @@ public:
 
   // Synchronous getters
   // ===================
+  // TODO: need some locks on reads for true safety
   uint64_t get_layout_period() const { return (uint64_t)layout.fl_stripe_count * (uint64_t)layout.fl_object_size; }
   ceph_file_layout& get_layout() { return layout; }
   bool is_active() { return state == STATE_ACTIVE; }
