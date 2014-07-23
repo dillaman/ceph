@@ -1383,7 +1383,10 @@ class C_MDS_BootStart : public Context {
   MDS::BootStep nextstep;
 public:
   C_MDS_BootStart(MDS *m, MDS::BootStep n) : mds(m), nextstep(n) {}
-  void finish(int r) { mds->boot_start(nextstep, r); }
+  void finish(int r) {
+      Mutex::Locker l(mds->mds_lock);
+      mds->boot_start(nextstep, r);
+  }
 };
 
 
@@ -1409,7 +1412,7 @@ void MDS::boot_start(BootStep step, int r)
       {
         mdcache->init_layouts();
 
-        C_GatherBuilder gather(g_ceph_context, new C_MDS_BootStart(this, MDS_BOOT_OPEN_ROOT));
+        C_GatherBuilder gather(g_ceph_context, new C_OnFinisher(new C_MDS_BootStart(this, MDS_BOOT_OPEN_ROOT), &finisher));
         dout(2) << "boot_start " << step << ": opening inotable" << dendl;
         inotable->load(gather.new_sub());
 
@@ -1431,7 +1434,7 @@ void MDS::boot_start(BootStep step, int r)
       {
         dout(2) << "boot_start " << step << ": loading/discovering base inodes" << dendl;
 
-        C_GatherBuilder gather(g_ceph_context, new C_MDS_BootStart(this, MDS_BOOT_PREPARE_LOG));
+        C_GatherBuilder gather(g_ceph_context, new C_OnFinisher(new C_MDS_BootStart(this, MDS_BOOT_PREPARE_LOG), &finisher));
 
         mdcache->open_mydir_inode(gather.new_sub());
 
@@ -1448,7 +1451,7 @@ void MDS::boot_start(BootStep step, int r)
     case MDS_BOOT_PREPARE_LOG:
       if (is_any_replay()) {
         dout(2) << "boot_start " << step << ": replaying mds log" << dendl;
-        mdlog->replay(new C_MDS_BootStart(this, MDS_BOOT_REPLAY_DONE));
+        mdlog->replay(new C_OnFinisher(new C_MDS_BootStart(this, MDS_BOOT_REPLAY_DONE), &finisher));
       } else {
         dout(2) << "boot_start " << step << ": positioning at end of old mds log" << dendl;
         mdlog->append();
@@ -1512,7 +1515,7 @@ void MDS::replay_start()
     dout(1) << " waiting for osdmap " << mdsmap->get_last_failure_osd_epoch() 
 	    << " (which blacklists prior instance)" << dendl;
     objecter->wait_for_map(mdsmap->get_last_failure_osd_epoch(),
-			   new C_MDS_BootStart(this, MDS_BOOT_INITIAL));
+			   new C_OnFinisher(C_MDS_BootStart(this, MDS_BOOT_INITIAL)));
   }
 }
 
@@ -1552,7 +1555,7 @@ inline void MDS::standby_replay_restart()
     dout(1) << " waiting for osdmap " << mdsmap->get_last_failure_osd_epoch() 
 	    << " (which blacklists prior instance)" << dendl;
     objecter->wait_for_map(mdsmap->get_last_failure_osd_epoch(),
-			   new C_MDS_BootStart(this, MDS_BOOT_PREPARE_LOG));
+			   new C_OnFinisher(new C_MDS_BootStart(this, MDS_BOOT_PREPARE_LOG)));
   } else {
     mdlog->get_journaler()->reread_head_and_probe(
       new C_MDS_StandbyReplayRestartFinish(this, mdlog->get_journaler()->get_read_pos()));
