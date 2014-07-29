@@ -1194,6 +1194,10 @@ public:
       (*i)->put();
     }
   }
+  void session_handle_reset(Session *session) {
+    Mutex::Locker l(session->session_dispatch_lock);
+    clear_session_waiting_on_map(session);
+  }
 
 private:
   /**
