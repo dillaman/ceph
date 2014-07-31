@@ -195,13 +195,14 @@ public:
     return stream_format;
   }
 
+  Header last_committed;
+
 private:
   // me
   CephContext *cct;
   Mutex lock;
   Finisher *finisher;
   Header last_written;
-  Header last_committed;
   inodeno_t ino;
   int64_t pg_pool;
   bool readonly;
@@ -366,9 +367,9 @@ private:
 
 public:
   Journaler(inodeno_t ino_, int64_t pool, const char *mag, Objecter *obj, PerfCounters *l, int lkey, SafeTimer *tim, Finisher *f=NULL) : 
-    cct(obj->cct), lock("Journaler"),
-    finisher(f),
-    last_written(mag), last_committed(mag), 
+    last_committed(mag),
+    cct(obj->cct), lock("Journaler"), finisher(f),
+    last_written(mag),
     ino(ino_), pg_pool(pool), readonly(true),
     stream_format(-1), journal_stream(-1),
     magic(mag),
