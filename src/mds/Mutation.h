@@ -257,7 +257,7 @@ struct MDRequestImpl : public MutationImpl, public TrackedOp {
     Context *slave_commit;
     bufferlist rollback_bl;
 
-    list<Context*> waiting_for_finish;
+    list<MDSInternalContext*> waiting_for_finish;
 
     // export & fragment
     CDir* export_dir;

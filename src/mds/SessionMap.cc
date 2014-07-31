@@ -64,7 +64,7 @@ public:
   }
 };
 
-void SessionMap::load(Context *onload)
+void SessionMap::load(MDSInternalContext *onload)
 {
   dout(10) << "load" << dendl;
 
@@ -112,7 +112,7 @@ public:
   }
 };
 
-void SessionMap::save(Context *onsave, version_t needv)
+void SessionMap::save(MDSInternalContext *onsave, version_t needv)
 {
   dout(10) << "save needv " << needv << ", v " << version << dendl;
  

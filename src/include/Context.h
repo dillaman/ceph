@@ -100,21 +100,21 @@ typedef ceph::shared_ptr<RunOnDelete> RunOnDeleteRef;
 /*
  * finish and destroy a list of Contexts
  */
-inline void finish_contexts(CephContext *cct, std::list<Context*>& finished, 
+template<class A>
+inline void finish_contexts(CephContext *cct, std::list<A*>& finished, 
                             int result = 0)
 {
   if (finished.empty())
     return;
 
-  list<Context*> ls;
+  list<A*> ls;
   ls.swap(finished); // swap out of place to avoid weird loops
 
   if (cct)
     mydout(cct, 10) << ls.size() << " contexts to finish with " << result << dendl;
-  for (std::list<Context*>::iterator it = ls.begin(); 
-       it != ls.end(); 
-       it++) {
-    Context *c = *it;
+  typename std::list<A*>::iterator it;
+  for (it = ls.begin(); it != ls.end(); it++) {
+    A *c = *it;
     if (cct)
       mydout(cct,10) << "---- " << c << dendl;
     c->complete(result);
@@ -168,20 +168,21 @@ struct C_Lock : public Context {
 /*
  * C_Contexts - set of Contexts
  */
-class C_Contexts : public Context {
+template <class A>
+class C_ContextsBase : public A {
 public:
   CephContext *cct;
-  std::list<Context*> contexts;
+  std::list<A*> contexts;
 
-  C_Contexts(CephContext *cct_)
+  C_ContextsBase(CephContext *cct_)
     : cct(cct_)
   {
   }
 
-  void add(Context* c) {
+  void add(A* c) {
     contexts.push_back(c);
   }
-  void take(std::list<Context*>& ls) {
+  void take(std::list<A*>& ls) {
     contexts.splice(contexts.end(), ls);
   }
   void finish(int r) {
@@ -189,20 +190,28 @@ public:
   }
   bool empty() { return contexts.empty(); }
 
-  static Context *list_to_context(list<Context *> &cs) {
+  static A *list_to_context(list<A *> &cs) {
     if (cs.size() == 0) {
       return 0;
     } else if (cs.size() == 1) {
-      Context *c = cs.front();
+      A *c = cs.front();
       cs.clear();
       return c;
     } else {
-      C_Contexts *c(new C_Contexts(0));
+      C_ContextsBase<A> *c(new C_ContextsBase<A>(0));
       c->take(cs);
       return c;
     }
   }
 };
+
+typedef C_ContextsBase<Context> C_Contexts;
+
+
+// Forward declare GatherBuilder in order
+// to be able to friend it from Gather
+template <class A>
+class C_GatherBuilderBase;
 
 
 /*
@@ -210,27 +219,28 @@ public:
  *
  * BUG:? only reports error from last sub to have an error return
  */
-class C_Gather : public Context {
+template <class A>
+class C_GatherBase : public A {
 private:
   CephContext *cct;
   int result;
-  Context *onfinish;
+  A *onfinish;
 #ifdef DEBUG_GATHER
-  std::set<Context*> waitfor;
+  std::set<A*> waitfor;
 #endif
   int sub_created_count;
   int sub_existing_count;
   Mutex lock;
   bool activated;
 
-  void sub_finish(Context* sub, int r) {
+  void sub_finish(A* sub, int r) {
     lock.Lock();
 #ifdef DEBUG_GATHER
     assert(waitfor.count(sub));
     waitfor.erase(sub);
 #endif
     --sub_existing_count;
-    mydout(cct,10) << "C_Gather " << this << ".sub_finish(r=" << r << ") " << sub
+    mydout(cct,10) << "C_GatherBase " << this << ".sub_finish(r=" << r << ") " << sub
 #ifdef DEBUG_GATHER
 		    << " (remaining " << waitfor << ")"
 #endif
@@ -253,10 +263,17 @@ private:
     delete this;
   }
 
-  class C_GatherSub : public Context {
-    C_Gather *gather;
+  class C_GatherSub : public A {
+    C_GatherBase *gather;
   public:
-    C_GatherSub(C_Gather *g) : gather(g) {}
+    C_GatherSub(C_GatherBase *g) : gather(g) {}
+    void complete(int r) {
+      // Cancel any customized complete() functionality
+      // from the Context subclass we're templated for,
+      // we only want to hit that in onfinish, not at each
+      // sub finish.  e.g. MDSInternalContext.
+      Context::complete(r);
+    }
     void finish(int r) {
       gather->sub_finish(this, r);
       gather = 0;
@@ -267,19 +284,19 @@ private:
     }
   };
 
-  C_Gather(CephContext *cct_, Context *onfinish_)
+  C_GatherBase(CephContext *cct_, A *onfinish_)
     : cct(cct_), result(0), onfinish(onfinish_),
       sub_created_count(0), sub_existing_count(0),
-      lock("C_Gather::lock", true, false), //disable lockdep
+      lock("C_GatherBase::lock", true, false), //disable lockdep
       activated(false)
   {
-    mydout(cct,10) << "C_Gather " << this << ".new" << dendl;
+    mydout(cct,10) << "C_GatherBase " << this << ".new" << dendl;
   }
 public:
-  ~C_Gather() {
-    mydout(cct,10) << "C_Gather " << this << ".delete" << dendl;
+  ~C_GatherBase() {
+    mydout(cct,10) << "C_GatherBase " << this << ".delete" << dendl;
   }
-  void set_finisher(Context *onfinish_) {
+  void set_finisher(A *onfinish_) {
     Mutex::Locker l(lock);
     assert(!onfinish);
     onfinish = onfinish_;
@@ -295,22 +312,22 @@ public:
     lock.Unlock();
     delete_me();
   }
-  Context *new_sub() {
+  A *new_sub() {
     Mutex::Locker l(lock);
     assert(activated == false);
     sub_created_count++;
     sub_existing_count++;
-    Context *s = new C_GatherSub(this);
+    A *s = new C_GatherSub(this);
 #ifdef DEBUG_GATHER
     waitfor.insert(s);
 #endif
-    mydout(cct,10) << "C_Gather " << this << ".new_sub is " << sub_created_count << " " << s << dendl;
+    mydout(cct,10) << "C_GatherBase " << this << ".new_sub is " << sub_created_count << " " << s << dendl;
     return s;
   }
   void finish(int r) {
     assert(0);    // nobody should ever call me.
   }
-  friend class C_GatherBuilder;
+  friend class C_GatherBuilderBase<A>;
 };
 
 /*
@@ -329,18 +346,19 @@ public:
  *
  * Note: Currently, subs must be manually freed by the caller (for some reason.)
  */
-class C_GatherBuilder
+template <class A>
+class C_GatherBuilderBase
 {
 public:
-  C_GatherBuilder(CephContext *cct_)
+  C_GatherBuilderBase(CephContext *cct_)
     : cct(cct_), c_gather(NULL), finisher(NULL), activated(false)
   {
   }
-  C_GatherBuilder(CephContext *cct_, Context *finisher_)
+  C_GatherBuilderBase(CephContext *cct_, A *finisher_)
     : cct(cct_), c_gather(NULL), finisher(finisher_), activated(false)
   {
   }
-  ~C_GatherBuilder() {
+  ~C_GatherBuilderBase() {
     if (c_gather) {
       assert(activated); // Don't forget to activate your C_Gather!
     }
@@ -348,9 +366,9 @@ public:
       delete finisher;
     }
   }
-  Context *new_sub() {
+  A *new_sub() {
     if (!c_gather) {
-      c_gather = new C_Gather(cct, finisher);
+      c_gather = new C_GatherBase<A>(cct, finisher);
     }
     return c_gather->new_sub();
   }
@@ -361,12 +379,12 @@ public:
     activated = true;
     c_gather->activate();
   }
-  void set_finisher(Context *finisher_) {
+  void set_finisher(A *finisher_) {
     finisher = finisher_;
     if (c_gather)
       c_gather->set_finisher(finisher);
   }
-  C_Gather *get() const {
+  C_GatherBase<A> *get() const {
     return c_gather;
   }
   bool has_subs() const {
@@ -389,10 +407,13 @@ public:
 
 private:
   CephContext *cct;
-  C_Gather *c_gather;
-  Context *finisher;
+  C_GatherBase<A> *c_gather;
+  A *finisher;
   bool activated;
 };
+
+typedef C_GatherBase<Context> C_Gather;
+typedef C_GatherBuilderBase<Context> C_GatherBuilder;
 
 #undef mydout
 

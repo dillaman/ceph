@@ -1279,9 +1279,9 @@ void MDS::handle_mds_map(MMDSMap *m)
     balancer->try_rebalance();
 
   {
-    map<epoch_t,list<Context*> >::iterator p = waiting_for_mdsmap.begin();
+    map<epoch_t,list<MDSInternalContext*> >::iterator p = waiting_for_mdsmap.begin();
     while (p != waiting_for_mdsmap.end() && p->first <= mdsmap->get_epoch()) {
-      list<Context*> ls;
+      list<MDSInternalContext*> ls;
       ls.swap(p->second);
       waiting_for_mdsmap.erase(p++);
       finish_contexts(g_ceph_context, ls);
@@ -1317,10 +1317,9 @@ void MDS::request_state(MDSMap::DaemonState s)
 }
 
 
-class C_MDS_CreateFinish : public Context {
-  MDS *mds;
+class C_MDS_CreateFinish : public MDSInternalContext {
 public:
-  C_MDS_CreateFinish(MDS *m) : mds(m) {}
+  C_MDS_CreateFinish(MDS *m) : MDSInternalContext(m) {}
   void finish(int r) { mds->creating_done(); }
 };
 
@@ -1328,7 +1327,7 @@ void MDS::boot_create()
 {
   dout(3) << "boot_create" << dendl;
 
-  C_GatherBuilder fin(g_ceph_context, new C_MDS_CreateFinish(this));
+  C_GatherBuilderBase<MDSInternalContext> fin(g_ceph_context, new C_MDS_CreateFinish(this));
 
   mdcache->init_layouts();
 
@@ -1378,13 +1377,11 @@ void MDS::creating_done()
 }
 
 
-class C_MDS_BootStart : public Context {
-  MDS *mds;
+class C_MDS_BootStart : public MDSInternalContext {
   MDS::BootStep nextstep;
 public:
-  C_MDS_BootStart(MDS *m, MDS::BootStep n) : mds(m), nextstep(n) {}
+  C_MDS_BootStart(MDS *m, MDS::BootStep n) : MDSInternalContext(m), nextstep(n) {}
   void finish(int r) {
-    Mutex::Locker l(mds->mds_lock);
     mds->boot_start(nextstep, r);
   }
 };
@@ -1412,7 +1409,8 @@ void MDS::boot_start(BootStep step, int r)
       {
         mdcache->init_layouts();
 
-        C_GatherBuilder gather(g_ceph_context, new C_OnFinisher(new C_MDS_BootStart(this, MDS_BOOT_OPEN_ROOT), &finisher));
+        C_GatherBuilderBase<MDSInternalContext> gather(g_ceph_context,
+            new C_MDS_BootStart(this, MDS_BOOT_OPEN_ROOT));
         dout(2) << "boot_start " << step << ": opening inotable" << dendl;
         inotable->load(gather.new_sub());
 
@@ -1434,7 +1432,8 @@ void MDS::boot_start(BootStep step, int r)
       {
         dout(2) << "boot_start " << step << ": loading/discovering base inodes" << dendl;
 
-        C_GatherBuilder gather(g_ceph_context, new C_OnFinisher(new C_MDS_BootStart(this, MDS_BOOT_PREPARE_LOG), &finisher));
+        C_GatherBuilderBase<MDSInternalContext> gather(g_ceph_context,
+            new C_MDS_BootStart(this, MDS_BOOT_PREPARE_LOG));
 
         mdcache->open_mydir_inode(gather.new_sub());
 
@@ -1451,7 +1450,7 @@ void MDS::boot_start(BootStep step, int r)
     case MDS_BOOT_PREPARE_LOG:
       if (is_any_replay()) {
         dout(2) << "boot_start " << step << ": replaying mds log" << dendl;
-        mdlog->replay(new C_OnFinisher(new C_MDS_BootStart(this, MDS_BOOT_REPLAY_DONE), &finisher));
+        mdlog->replay(new C_MDS_BootStart(this, MDS_BOOT_REPLAY_DONE));
       } else {
         dout(2) << "boot_start " << step << ": positioning at end of old mds log" << dendl;
         mdlog->append();
@@ -1502,8 +1501,7 @@ void MDS::replay_start()
   calc_recovery_set();
 
   // Check if we need to wait for a newer OSD map before starting
-  Context *fin = new C_OnFinisher(new C_MDS_BootStart(this, MDS_BOOT_INITIAL),
-				  &finisher);
+  Context *fin = new C_OnFinisher(new C_IO_Wrapper(this, new C_MDS_BootStart(this, MDS_BOOT_INITIAL)), &finisher);
   bool const ready = objecter->wait_for_map(
       mdsmap->get_last_failure_osd_epoch(),
       fin);
@@ -1555,8 +1553,8 @@ inline void MDS::standby_replay_restart()
   } else {
     /* We are transitioning out of standby: wait for OSD map update
        before making final pass */
-    Context *fin = new C_OnFinisher(
-      new C_MDS_BootStart(this, MDS_BOOT_PREPARE_LOG),
+    Context *fin = new C_OnFinisher(new C_IO_Wrapper(this,
+          new C_MDS_BootStart(this, MDS_BOOT_PREPARE_LOG)),
       &finisher);
     bool const ready =
       objecter->wait_for_map(mdsmap->get_last_failure_osd_epoch(), fin);
@@ -1626,18 +1624,18 @@ void MDS::replay_done()
   if (g_conf->mds_wipe_sessions) {
     dout(1) << "wiping out client sessions" << dendl;
     sessionmap.wipe();
-    sessionmap.save(new C_NoopContext);
+    sessionmap.save(new C_MDSInternalNoop);
   }
   if (g_conf->mds_wipe_ino_prealloc) {
     dout(1) << "wiping out ino prealloc from sessions" << dendl;
     sessionmap.wipe_ino_prealloc();
-    sessionmap.save(new C_NoopContext);
+    sessionmap.save(new C_MDSInternalNoop);
   }
   if (g_conf->mds_skip_ino) {
     inodeno_t i = g_conf->mds_skip_ino;
     dout(1) << "skipping " << i << " inodes" << dendl;
     inotable->skip_inos(i);
-    inotable->save(new C_NoopContext);
+    inotable->save(new C_MDSInternalNoop);
   }
 
   if (mdsmap->get_num_in_mds() == 1 &&
@@ -2125,10 +2123,14 @@ bool MDS::_dispatch(Message *m)
   while (!finished_queue.empty()) {
     dout(7) << "mds has " << finished_queue.size() << " queued contexts" << dendl;
     dout(10) << finished_queue << dendl;
-    list<Context*> ls;
+    list<MDSInternalContext*> ls;
     ls.swap(finished_queue);
     while (!ls.empty()) {
       dout(10) << " finish " << ls.front() << dendl;
+
+      dout(1) << "trigger:  " << this << dendl;
+      dout(1) << "          " << this->mds_lock.is_locked() << dendl;
+      dout(1) << "          " << this->mds_lock.is_locked_by_me() << dendl;
       ls.front()->complete(0);
       ls.pop_front();
       
