@@ -1647,7 +1647,7 @@ int OSD::shutdown()
 
   service.start_shutdown();
 
-  dispatch_sessions_waiting_on_map();
+  clear_waiting_sessions();
 
   // Shutdown PGs
   {

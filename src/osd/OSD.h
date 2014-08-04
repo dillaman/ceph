@@ -1162,6 +1162,23 @@ public:
 
   Mutex session_waiting_lock;
   set<Session*> session_waiting_for_map;
+
+  void clear_waiting_sessions() {
+    Mutex::Locker l(session_waiting_lock);
+    for (map<spg_t, set<Session*> >::iterator i =
+	   session_waiting_for_pg.begin();
+	 i != session_waiting_for_pg.end();
+	 ++i) {
+      for (set<Session*>::iterator j = i->second.begin();
+	   j != i->second.end();
+	   ++j) {
+	(*j)->put();
+      }
+    }
+    session_waiting_for_pg.clear();
+
+  }
+
   /// Caller assumes refs for included Sessions
   void get_sessions_waiting_for_map(set<Session*> *out) {
     Mutex::Locker l(session_waiting_lock);
