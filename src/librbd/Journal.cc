@@ -94,10 +94,12 @@ int Journal::create(librados::IoCtx &io_ctx, const std::string &image_id) {
   CephContext *cct = reinterpret_cast<CephContext *>(io_ctx.cct());
   ldout(cct, 5) << __func__ << ": image=" << image_id << dendl;
 
-  ::journal::Journaler journaler(io_ctx, io_ctx, image_id, "");
+  ::journal::Journaler journaler(io_ctx, io_ctx, image_id, "",
+				 cct->_conf->rbd_journal_commit_interval);
 
-  // TODO order / splay width via config / image metadata
-  int r = journaler.create(24, 4);
+  // TODO order / splay width via image metadata
+  int r = journaler.create(cct->_conf->rbd_journal_default_order,
+			   cct->_conf->rbd_journal_default_splay_width);
   if (r < 0) {
     lderr(cct) << "failed to create journal: " << cpp_strerror(r) << dendl;
     return r;
@@ -115,7 +117,8 @@ int Journal::remove(librados::IoCtx &io_ctx, const std::string &image_id) {
   CephContext *cct = reinterpret_cast<CephContext *>(io_ctx.cct());
   ldout(cct, 5) << __func__ << ": image=" << image_id << dendl;
 
-  ::journal::Journaler journaler(io_ctx, io_ctx, image_id, "");
+  ::journal::Journaler journaler(io_ctx, io_ctx, image_id, "",
+				 cct->_conf->rbd_journal_commit_interval);
 
   C_SaferCond cond;
   journaler.init(&cond);
@@ -393,7 +396,8 @@ void Journal::create_journaler() {
   // TODO allow alternate pool for journal objects
   m_close_pending = false;
   m_journaler = new ::journal::Journaler(m_image_ctx.md_ctx, m_image_ctx.md_ctx,
-                                         m_image_ctx.id, "");
+					 m_image_ctx.id, "",
+					 cct->_conf->rbd_journal_commit_interval);
 
   m_journaler->init(new C_InitJournal(this));
   transition_state(STATE_INITIALIZING);
@@ -519,7 +523,7 @@ void Journal::handle_replay_complete(int r) {
       return;
     }
 
-    m_journaler->start_append();
+    m_journaler->start_append(cct->_conf->rbd_journal_flush_interval);
     transition_state(STATE_RECORDING);
 
     unblock_writes();

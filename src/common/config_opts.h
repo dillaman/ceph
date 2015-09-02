@@ -962,6 +962,14 @@ OPTION(rbd_default_features, OPT_INT, 3) // only applies to format 2 images
 
 OPTION(rbd_default_map_options, OPT_STR, "") // default rbd map -o / --options
 
+/**
+ * RBD journa options.
+ */
+OPTION(rbd_journal_commit_interval, OPT_DOUBLE, 5) // commit interval, seconds
+OPTION(rbd_journal_flush_interval, OPT_INT, 0) // journal object flush interval, number of entries
+OPTION(rbd_journal_default_order, OPT_U32, 24) // bits to shift to compute journal object max size, between 12 and 64
+OPTION(rbd_journal_default_splay_width, OPT_U32, 4) // number of active journal objects
+
 OPTION(nss_db_path, OPT_STR, "") // path to nss db
 
 
