@@ -192,6 +192,26 @@ namespace librbd {
   int metadata_set(ImageCtx *ictx, const std::string &key, const std::string &value);
   int metadata_remove(ImageCtx *ictx, const std::string &key);
 
+  int mirror_is_enabled(IoCtx& io_ctx, bool *enabled);
+  int mirror_set_enabled(IoCtx& io_ctx, bool enabled);
+  int mirror_peer_add(IoCtx& io_ctx, const std::string &cluster_uuid,
+                      const std::string &cluster_name, int64_t pool_id,
+                      const std::string &client_name);
+  int mirror_peer_remove(IoCtx& io_ctx, const std::string &cluster_uuid);
+  int mirror_peer_list(IoCtx& io_ctx, std::vector<mirror_peer_t> *peers);
+  int mirror_peer_set_client(IoCtx& io_ctx, const std::string &cluster_uuid,
+                             const std::string &client_name);
+  int mirror_peer_set_cluster(IoCtx& io_ctx, const std::string &cluster_uuid,
+                              const std::string &cluster_name);
+
+  ssize_t handle_sparse_read(CephContext *cct,
+			     ceph::bufferlist data_bl,
+			     uint64_t block_ofs,
+			     const std::map<uint64_t, uint64_t> &data_map,
+			     uint64_t buf_ofs,
+			     size_t buf_len,
+			     char *dest_buf);
+
   AioCompletion *aio_create_completion();
   AioCompletion *aio_create_completion(void *cb_arg, callback_t cb_complete);
   AioCompletion *aio_create_completion_internal(void *cb_arg,
