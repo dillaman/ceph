@@ -3198,3 +3198,70 @@ TEST_F(TestLibRBD, ExclusiveLockTransition)
   ASSERT_PASSED(validate_object_map, image2);
   ASSERT_PASSED(validate_object_map, image3);
 }
+
+namespace librbd {
+
+static bool operator==(const mirror_peer_t &lhs, const mirror_peer_t &rhs) {
+  return (lhs.cluster_uuid == rhs.cluster_uuid &&
+          lhs.cluster_name == rhs.cluster_name &&
+          lhs.pool_id == rhs.pool_id &&
+          lhs.client_name == rhs.client_name);
+}
+
+} // namespace librbd
+
+TEST_F(TestLibRBD, Mirror) {
+  librados::IoCtx ioctx;
+  ASSERT_EQ(0, _rados.ioctx_create(m_pool_name.c_str(), ioctx));
+
+  librbd::RBD rbd;
+
+  std::vector<librbd::mirror_peer_t> expected_peers;
+  std::vector<librbd::mirror_peer_t> peers;
+  ASSERT_EQ(0, rbd.mirror_peer_list(ioctx, &peers));
+  ASSERT_EQ(expected_peers, peers);
+
+  ASSERT_EQ(-EINVAL, rbd.mirror_peer_add(ioctx, "uuid1", "cluster1", 123,
+                                         "client"));
+
+  bool enabled;
+  ASSERT_EQ(0, rbd.mirror_is_enabled(ioctx, &enabled));
+  ASSERT_FALSE(enabled);
+  ASSERT_EQ(0, rbd.mirror_set_enabled(ioctx, true));
+  ASSERT_EQ(0, rbd.mirror_is_enabled(ioctx, &enabled));
+  ASSERT_TRUE(enabled);
+
+  ASSERT_EQ(0, rbd.mirror_peer_add(ioctx, "uuid1", "cluster1", 123, "client"));
+  ASSERT_EQ(0, rbd.mirror_peer_add(ioctx, "uuid2", "cluster2", 234, "admin"));
+  ASSERT_EQ(-EEXIST, rbd.mirror_peer_add(ioctx, "uuid2", "cluster3", 345,
+                                         "foo"));
+  ASSERT_EQ(-EEXIST, rbd.mirror_peer_add(ioctx, "uuid3", "cluster1", 345,
+                                         "foo"));
+  ASSERT_EQ(0, rbd.mirror_peer_add(ioctx, "uuid3", "cluster3", 234, "admin"));
+
+  ASSERT_EQ(0, rbd.mirror_peer_list(ioctx, &peers));
+  expected_peers = {
+    {"uuid1", "cluster1", 123, "client"},
+    {"uuid2", "cluster2", 234, "admin"},
+    {"uuid3", "cluster3", 234, "admin"}};
+  ASSERT_EQ(expected_peers, peers);
+
+  ASSERT_EQ(0, rbd.mirror_peer_remove(ioctx, "uuid4"));
+  ASSERT_EQ(0, rbd.mirror_peer_remove(ioctx, "uuid2"));
+
+  ASSERT_EQ(-ENOENT, rbd.mirror_peer_set_client(ioctx, "uuid4", "new client"));
+  ASSERT_EQ(0, rbd.mirror_peer_set_client(ioctx, "uuid1", "new client"));
+
+  ASSERT_EQ(-ENOENT, rbd.mirror_peer_set_cluster(ioctx, "uuid4",
+                                                 "new cluster"));
+  ASSERT_EQ(0, rbd.mirror_peer_set_cluster(ioctx, "uuid3", "new cluster"));
+
+  ASSERT_EQ(0, rbd.mirror_peer_list(ioctx, &peers));
+  expected_peers = {
+    {"uuid1", "cluster1", 123, "new client"},
+    {"uuid3", "new cluster", 234, "admin"}};
+  ASSERT_EQ(expected_peers, peers);
+
+  ASSERT_EQ(-EBUSY, rbd.mirror_set_enabled(ioctx, false));
+}
+
