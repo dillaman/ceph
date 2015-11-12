@@ -31,6 +31,12 @@
 #include "librbd/Journal.h"
 #include "librbd/ObjectMap.h"
 #include "librbd/parent_types.h"
+#include "librbd/Utils.h"
+#include "librbd/image/CloseRequest.h"
+#include "librbd/image/OpenRequest.h"
+#include "librbd/image/RefreshParentRequest.h"
+#include "librbd/image/RefreshRequest.h"
+#include "librbd/image/SetSnapRequest.h"
 #include "librbd/operation/FlattenRequest.h"
 #include "librbd/operation/RebuildObjectMapRequest.h"
 #include "librbd/operation/RenameRequest.h"
@@ -224,36 +230,17 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
 
 } // anonymous namespace
 
-  const string id_obj_name(const string &name)
-  {
-    return RBD_ID_PREFIX + name;
-  }
-
-  const string header_name(const string &image_id)
-  {
-    return RBD_HEADER_PREFIX + image_id;
-  }
-
-  const string old_header_name(const string &image_name)
-  {
-    return image_name + RBD_SUFFIX;
-  }
-
-  std::string unique_lock_name(const std::string &name, void *address) {
-    return name + " (" + stringify(address) + ")";
-  }
-
   int detect_format(IoCtx &io_ctx, const string &name,
 		    bool *old_format, uint64_t *size)
   {
     CephContext *cct = (CephContext *)io_ctx.cct();
     if (old_format)
       *old_format = true;
-    int r = io_ctx.stat(old_header_name(name), size, NULL);
+    int r = io_ctx.stat(util::old_header_name(name), size, NULL);
     if (r == -ENOENT) {
       if (old_format)
 	*old_format = false;
-      r = io_ctx.stat(id_obj_name(name), size, NULL);
+      r = io_ctx.stat(util::id_obj_name(name), size, NULL);
       if (r < 0)
 	return r;
     } else if (r < 0) {
@@ -1157,7 +1144,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     bufferlist bl;
     bl.append((const char *)&header, sizeof(header));
 
-    string header_oid = old_header_name(imgname);
+    string header_oid = util::old_header_name(imgname);
     r = io_ctx.write(header_oid, bl, bl.length(), 0);
     if (r < 0) {
       lderr(cct) << "Error writing image header: " << cpp_strerror(r)
@@ -1190,7 +1177,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
 
     ceph_file_layout layout;
 
-    id_obj = id_obj_name(imgname);
+    id_obj = util::id_obj_name(imgname);
 
     int r = io_ctx.create(id_obj, true);
     if (r < 0) {
@@ -1217,7 +1204,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     }
 
     oss << RBD_DATA_PREFIX << id;
-    header_oid = header_name(id);
+    header_oid = util::header_name(id);
     r = cls_client::create_image(&io_ctx, header_oid, size, order,
 				 features, oss.str());
     if (r < 0) {
@@ -2204,7 +2191,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
       }
 
       ldout(cct, 2) << "removing id object..." << dendl;
-      r = io_ctx.remove(id_obj_name(imgname));
+      r = io_ctx.remove(util::id_obj_name(imgname));
       if (r < 0 && r != -ENOENT) {
 	lderr(cct) << "error removing id object: " << cpp_strerror(r) << dendl;
 	return r;
@@ -2771,7 +2758,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
       }
 
       Context *ctx = new C_CopyWrite(m_throttle, m_bl);
-      AioCompletion *comp = aio_create_completion_internal(ctx, rbd_ctx_cb);
+      AioCompletion *comp = AioCompletion::create(ctx);
 
       // coordinate through AIO WQ to ensure lock is acquired if needed
       m_dest->aio_work_queue->aio_write(comp, m_offset, m_bl->length(),
@@ -2829,7 +2816,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
       uint64_t len = min(period, src_size - offset);
       bufferlist *bl = new bufferlist();
       Context *ctx = new C_CopyRead(&throttle, dest, offset, bl);
-      AioCompletion *comp = aio_create_completion_internal(ctx, rbd_ctx_cb);
+      AioCompletion *comp = AioCompletion::create(ctx);
       AioImageRequest::aio_read(src, comp, offset, len, NULL, bl,
                                 fadvise_flags);
       prog_ctx.update_progress(offset, src_size);
@@ -2931,7 +2918,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
 			 << "' id = '" << ictx->id
 			 << "' snap_name = '"
 			 << ictx->snap_name << "'" << dendl;
-    int r = ictx->init();
+    int r = ictx->init_legacy();
     if (r < 0)
       goto err_close;
 
@@ -3393,26 +3380,19 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
 
       bufferlist bl;
 
-      Mutex mylock("IoCtxImpl::write::mylock");
-      Cond cond;
-      bool done;
-      int ret;
-
-      Context *ctx = new C_SafeCond(&mylock, &cond, &done, &ret);
-      AioCompletion *c = aio_create_completion_internal(ctx, rbd_ctx_cb);
+      C_SaferCond ctx;
+      AioCompletion *c = AioCompletion::create(&ctx);
       AioImageRequest::aio_read(ictx, c, off, read_len, NULL, &bl, 0);
 
-      mylock.Lock();
-      while (!done)
-	cond.Wait(mylock);
-      mylock.Unlock();
-
-      if (ret < 0)
-	return ret;
+      int ret = ctx.wait();
+      if (ret < 0) {
+        return ret;
+      }
 
       r = cb(total_read, ret, bl.c_str(), arg);
-      if (r < 0)
+      if (r < 0) {
 	return r;
+      }
 
       total_read += ret;
       left -= ret;
@@ -3455,18 +3435,6 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
                         whole_object, cb, arg);
     r = command.execute();
     return r;
-  }
-
-  void rados_req_cb(rados_completion_t c, void *arg)
-  {
-    AioObjectRequest *req = reinterpret_cast<AioObjectRequest *>(arg);
-    req->complete(rados_aio_get_return_value(c));
-  }
-
-  void rados_ctx_cb(rados_completion_t c, void *arg)
-  {
-    Context *comp = reinterpret_cast<Context *>(arg);
-    comp->complete(rados_aio_get_return_value(c));
   }
 
   // validate extent against image size; clip to image size if necessary
@@ -3788,23 +3756,5 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
       ictx->perfcounter->inc(l_librbd_readahead);
       ictx->perfcounter->inc(l_librbd_readahead_bytes, readahead_length);
     }
-  }
-
-  AioCompletion *aio_create_completion() {
-    AioCompletion *c = new AioCompletion();
-    return c;
-  }
-
-  AioCompletion *aio_create_completion(void *cb_arg, callback_t cb_complete) {
-    AioCompletion *c = new AioCompletion();
-    c->set_complete_cb(cb_arg, cb_complete);
-    return c;
-  }
-
-  AioCompletion *aio_create_completion_internal(void *cb_arg,
-						callback_t cb_complete) {
-    AioCompletion *c = aio_create_completion(cb_arg, cb_complete);
-    c->rbd_comp = c;
-    return c;
   }
 }

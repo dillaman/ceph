@@ -35,10 +35,13 @@ struct MockImageCtx {
       header_oid(image_ctx.header_oid),
       id(image_ctx.id),
       parent_md(image_ctx.parent_md),
+      layout(image_ctx.layout),
       aio_work_queue(new MockAioImageRequestWQ()),
       op_work_queue(new MockContextWQ()),
-      image_watcher(NULL), journal(NULL),
-      concurrent_management_ops(image_ctx.concurrent_management_ops)
+      image_watcher(NULL), object_map_ptr(NULL), journal(NULL),
+      concurrent_management_ops(image_ctx.concurrent_management_ops),
+      blacklist_on_break_lock(image_ctx.blacklist_on_break_lock),
+      blacklist_expire_seconds(image_ctx.blacklist_expire_seconds)
   {
     md_ctx.dup(image_ctx.md_ctx);
     data_ctx.dup(image_ctx.data_ctx);
@@ -56,12 +59,20 @@ struct MockImageCtx {
   }
 
   void wait_for_async_requests() {
-    Mutex::Locker async_ops_locker(async_ops_lock);
-    while (!async_requests.empty()) {
-      async_requests_cond.Wait(async_ops_lock);
+    async_ops_lock.Lock();
+    if (async_requests.empty()) {
+      async_ops_lock.Unlock();
+      return;
     }
+
+    C_SaferCond ctx;
+    async_requests_waiters.push_back(&ctx);
+    async_ops_lock.Unlock();
+
+    ctx.wait();
   }
 
+  MOCK_CONST_METHOD1(get_image_size, uint64_t(librados::snap_t));
   MOCK_CONST_METHOD1(get_snap_id, librados::snap_t(std::string in_snap_name));
   MOCK_CONST_METHOD1(get_snap_info, const SnapInfo*(librados::snap_t));
   MOCK_CONST_METHOD2(get_parent_spec, int(librados::snap_t in_snap_id,
@@ -77,6 +88,13 @@ struct MockImageCtx {
                               uint8_t protection_status, uint64_t flags));
   MOCK_METHOD2(rm_snap, void(std::string in_snap_name, librados::snap_t id));
   MOCK_METHOD1(flush, void(Context *));
+
+  MOCK_CONST_METHOD1(test_features, bool(uint64_t test_features));
+
+  MOCK_METHOD1(cancel_async_requests, void(Context*));
+
+  MOCK_METHOD0(create_object_map, MockObjectMap*());
+  MOCK_METHOD0(create_journal, MockJournal*());
 
   ImageCtx *image_ctx;
   CephContext *cct;
@@ -105,18 +123,23 @@ struct MockImageCtx {
   std::string id;
   parent_info parent_md;
 
+  ceph_file_layout layout;
+
   xlist<AsyncRequest<MockImageCtx>*> async_requests;
-  Cond async_requests_cond;
+  std::list<Context*> async_requests_waiters;
 
   MockAioImageRequestWQ *aio_work_queue;
   MockContextWQ *op_work_queue;
 
   MockImageWatcher *image_watcher;
-  MockObjectMap object_map;
+  MockObjectMap object_map;       // TODO replace with ptr
+  MockObjectMap *object_map_ptr;  // TODO
 
   MockJournal *journal;
 
   int concurrent_management_ops;
+  bool blacklist_on_break_lock;
+  uint32_t blacklist_expire_seconds;
 };
 
 } // namespace librbd

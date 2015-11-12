@@ -5,6 +5,7 @@
 
 #include "include/int_types.h"
 
+#include <list>
 #include <map>
 #include <set>
 #include <string>
@@ -40,13 +41,14 @@ class PerfCounters;
 namespace librbd {
 
   struct ImageCtx;
+  class AioCompletion;
   class AioImageRequestWQ;
   class AsyncOperation;
   class CopyupRequest;
-  class LibrbdAdminSocketHook;
+  template <typename> class ExclusiveLock;
   class ImageWatcher;
   class Journal;
-  class AioCompletion;
+  class LibrbdAdminSocketHook;
 
   namespace operation {
   template <typename> class ResizeRequest;
@@ -134,9 +136,12 @@ namespace librbd {
 
     xlist<AsyncOperation*> async_ops;
     xlist<AsyncRequest<>*> async_requests;
-    Cond async_requests_cond;
+    std::list<Context*> async_requests_waiters;
 
-    ObjectMap object_map;
+    ExclusiveLock<ImageCtx> *exclusive_lock;
+
+    ObjectMap object_map;         // TODO
+    ObjectMap *object_map_ptr;
 
     atomic_t async_request_seq;
 
@@ -196,7 +201,8 @@ namespace librbd {
     ImageCtx(const std::string &image_name, const std::string &image_id,
 	     const char *snap, IoCtx& p, bool read_only);
     ~ImageCtx();
-    int init();
+    int init_legacy();   // TODO
+    void init();
     void init_layout();
     void perf_start(std::string name);
     void perf_stop();
@@ -248,7 +254,8 @@ namespace librbd {
     void user_flushed();
     int flush_cache();
     void flush_cache(Context *onfinish);
-    int shutdown_cache();
+    int shutdown_cache(); // TODO
+    void shut_down_cache(Context *on_finish);
     int invalidate_cache(bool purge_on_error=false);
     void invalidate_cache(Context *on_finish);
     void clear_nonexistence_cache();
@@ -264,10 +271,18 @@ namespace librbd {
     void flush(Context *on_safe);
 
     void cancel_async_requests();
+    void cancel_async_requests(Context *on_finish);
+
+    void flush_copyup(Context *on_finish);
+
     void apply_metadata_confs();
 
-    void open_journal();
-    int close_journal(bool force);
+    ObjectMap *create_object_map();
+
+    Journal *create_journal();
+    void open_journal();            // TODO remove
+    int close_journal(bool force);  // TODO remove
+
     void clear_pending_completions();
   };
 }

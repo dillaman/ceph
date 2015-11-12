@@ -15,6 +15,7 @@
 
 #include "librbd/AioObjectRequest.h"
 #include "librbd/CopyupRequest.h"
+#include "librbd/Utils.h"
 
 #include <boost/bind.hpp>
 #include <boost/optional.hpp>
@@ -100,14 +101,6 @@ namespace librbd {
       m_state(LIBRBD_AIO_READ_FLAT) {
 
     guard_read();
-  }
-
-  AioObjectRead::~AioObjectRead()
-  {
-    if (m_parent_completion) {
-      m_parent_completion->release();
-      m_parent_completion = NULL;
-    }
   }
 
   void AioObjectRead::guard_read()
@@ -217,9 +210,6 @@ namespace librbd {
       return;
     }
 
-    librados::AioCompletion *rados_completion =
-      librados::Rados::aio_create_completion(this, rados_req_cb, NULL);
-    int r;
     librados::ObjectReadOperation op;
     int flags = m_ictx->get_read_flags(m_snap_id);
     if (m_sparse) {
@@ -230,7 +220,10 @@ namespace librbd {
     }
     op.set_op_flags2(m_op_flags);
 
-    r = m_ictx->data_ctx.aio_operate(m_oid, rados_completion, &op, flags, NULL);
+    librados::AioCompletion *rados_completion =
+      util::create_rados_ack_callback(this);
+    int r = m_ictx->data_ctx.aio_operate(m_oid, rados_completion, &op, flags,
+                                         NULL);
     assert(r == 0);
 
     rados_completion->release();
@@ -261,7 +254,7 @@ namespace librbd {
   void AioObjectRead::read_from_parent(const vector<pair<uint64_t,uint64_t> >& parent_extents)
   {
     assert(!m_parent_completion);
-    m_parent_completion = aio_create_completion_internal(this, rbd_req_cb);
+    m_parent_completion = AioCompletion::create<AioObjectRequest>(this);
 
     // prevent the parent image from being deleted while this
     // request is still in-progress
@@ -406,8 +399,7 @@ namespace librbd {
 
         RWLock::WLocker object_map_locker(m_ictx->object_map_lock);
         if (m_ictx->object_map[m_object_no] != new_state) {
-          FunctionContext *ctx = new FunctionContext(
-            boost::bind(&AioObjectRequest::complete, this, _1));
+          Context *ctx = util::create_context_callback<AioObjectRequest>(this);
           bool updated = m_ictx->object_map.aio_update(m_object_no, new_state,
                                                        current_state, ctx);
           assert(updated);
@@ -445,8 +437,7 @@ namespace librbd {
       return true;
     }
 
-    FunctionContext *ctx = new FunctionContext(
-      boost::bind(&AioObjectRequest::complete, this, _1));
+    Context *ctx = util::create_context_callback<AioObjectRequest>(this);
     bool updated = m_ictx->object_map.aio_update(m_object_no,
                                                  OBJECT_NONEXISTENT,
 				                 OBJECT_PENDING, ctx);
@@ -501,7 +492,7 @@ namespace librbd {
     assert(m_write.size() != 0);
 
     librados::AioCompletion *rados_completion =
-      librados::Rados::aio_create_completion(this, NULL, rados_req_cb);
+      util::create_rados_safe_callback(this);
     int r = m_ictx->data_ctx.aio_operate(m_oid, rados_completion, &m_write,
 					 m_snap_seq, m_snaps);
     assert(r == 0);
