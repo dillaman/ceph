@@ -25,6 +25,7 @@
 #include "librbd/AioObjectRequest.h"
 #include "librbd/CopyupRequest.h"
 #include "librbd/DiffIterate.h"
+#include "librbd/ExclusiveLock.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/ImageWatcher.h"
 #include "librbd/internal.h"
@@ -158,28 +159,27 @@ int prepare_image_update(ImageCtx *ictx) {
   assert(ictx->owner_lock.is_locked() && !ictx->owner_lock.is_wlocked());
   if (ictx->image_watcher == NULL) {
     return -EROFS;
-  } else if (!ictx->image_watcher->is_lock_supported() ||
-             ictx->image_watcher->is_lock_owner()) {
-    return 0;
   }
 
   // need to upgrade to a write lock
   int r = 0;
-  bool acquired_lock = false;
+  bool trying_lock = false;
+  C_SaferCond ctx;
   ictx->owner_lock.put_read();
   {
-    RWLock::WLocker l(ictx->owner_lock);
-    if (!ictx->image_watcher->is_lock_owner()) {
-      r = ictx->image_watcher->try_lock();
-      acquired_lock = ictx->image_watcher->is_lock_owner();
+    RWLock::WLocker owner_locker(ictx->owner_lock);
+    if (ictx->exclusive_lock != nullptr &&
+        !ictx->exclusive_lock->is_lock_owner()) {
+      ictx->exclusive_lock->try_lock(&ctx);
+      trying_lock = true;
     }
   }
-  if (acquired_lock) {
-    // finish any AIO that was previously waiting on acquiring the
-    // exclusive lock
-    ictx->flush_async_operations();
+
+  if (trying_lock) {
+    r = ctx.wait();
   }
   ictx->owner_lock.get_read();
+
   return r;
 }
 
@@ -200,11 +200,11 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
         }
       }
 
-      while (ictx->image_watcher->is_lock_supported()) {
+      while (ictx->exclusive_lock != nullptr) {
         r = prepare_image_update(ictx);
         if (r < 0) {
           return -EROFS;
-        } else if (ictx->image_watcher->is_lock_owner()) {
+        } else if (ictx->exclusive_lock->is_lock_owner()) {
           break;
         }
 
@@ -314,8 +314,8 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
   void trim_image(ImageCtx *ictx, uint64_t newsize, ProgressContext& prog_ctx)
   {
     assert(ictx->owner_lock.is_locked());
-    assert(!ictx->image_watcher->is_lock_supported() ||
-	   ictx->image_watcher->is_lock_owner());
+    assert(ictx->exclusive_lock == nullptr ||
+	   ictx->exclusive_lock->is_lock_owner());
 
     C_SaferCond ctx;
     ictx->snap_lock.get_read();
@@ -774,8 +774,8 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
 
   void snap_create_helper(ImageCtx* ictx, Context* ctx, const char* snap_name) {
     assert(ictx->owner_lock.is_locked());
-    assert(!ictx->image_watcher->is_lock_supported() ||
-	   ictx->image_watcher->is_lock_owner());
+    assert(ictx->exclusive_lock == nullptr ||
+	   ictx->exclusive_lock->is_lock_owner());
 
     ldout(ictx->cct, 20) << "snap_create_helper " << ictx << " " << snap_name
                          << dendl;
@@ -843,8 +843,8 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     assert(ictx->owner_lock.is_locked());
     {
       if ((ictx->features & RBD_FEATURE_FAST_DIFF) != 0) {
-        assert(!ictx->image_watcher->is_lock_supported() ||
-               ictx->image_watcher->is_lock_owner());
+        assert(ictx->exclusive_lock == nullptr ||
+	       ictx->exclusive_lock->is_lock_owner());
       }
     }
 
@@ -938,8 +938,8 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
                           const uint64_t src_snap_id, const char* dst_name) {
     assert(ictx->owner_lock.is_locked());
     if ((ictx->features & RBD_FEATURE_JOURNALING) != 0) {
-      assert(!ictx->image_watcher->is_lock_supported() ||
-             ictx->image_watcher->is_lock_owner());
+      assert(ictx->exclusive_lock == nullptr ||
+	     ictx->exclusive_lock->is_lock_owner());
     }
     ldout(ictx->cct, 20) << __func__ << " " << ictx << " from "
                          << src_snap_id << " to " << dst_name << dendl;
@@ -1010,8 +1010,8 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
   {
     assert(ictx->owner_lock.is_locked());
     if (ictx->test_features(RBD_FEATURE_JOURNALING)) {
-      assert(!ictx->image_watcher->is_lock_supported() ||
-             ictx->image_watcher->is_lock_owner());
+      assert(ictx->exclusive_lock == nullptr ||
+	     ictx->exclusive_lock->is_lock_owner());
     }
 
     ldout(ictx->cct, 20) << "snap_protect_helper " << ictx << " " << snap_name
@@ -1085,8 +1085,8 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
   {
     assert(ictx->owner_lock.is_locked());
     if (ictx->test_features(RBD_FEATURE_JOURNALING)) {
-      assert(!ictx->image_watcher->is_lock_supported() ||
-             ictx->image_watcher->is_lock_owner());
+      assert(ictx->exclusive_lock == nullptr ||
+	     ictx->exclusive_lock->is_lock_owner());
     }
 
     ldout(ictx->cct, 20) << "snap_unprotect_helper " << ictx << " " << snap_name
@@ -1597,6 +1597,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
       RWLock::RLocker owner_locker(p_imctx->owner_lock);
       r = ictx_refresh(p_imctx);
     }
+
     if (r == 0) {
       p_imctx->snap_lock.get_read();
       r = p_imctx->is_snap_protected(p_imctx->snap_id, &snap_protected);
@@ -1694,8 +1695,8 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
   {
     assert(ictx->owner_lock.is_locked());
     if (ictx->test_features(RBD_FEATURE_JOURNALING)) {
-      assert(!ictx->image_watcher->is_lock_supported() ||
-	     ictx->image_watcher->is_lock_owner());
+      assert(ictx->exclusive_lock == nullptr ||
+	     ictx->exclusive_lock->is_lock_owner());
     }
 
     ldout(ictx->cct, 20) << "rename_helper " << ictx << " " << dstname
@@ -2084,8 +2085,8 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
   int is_exclusive_lock_owner(ImageCtx *ictx, bool *is_owner)
   {
     RWLock::RLocker l(ictx->owner_lock);
-    *is_owner = (ictx->image_watcher != NULL &&
-		 ictx->image_watcher->is_lock_owner());
+    *is_owner = (ictx->exclusive_lock != nullptr &&
+		 ictx->exclusive_lock->is_lock_owner());
     return 0;
   }
 
@@ -2108,9 +2109,9 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
       id = ictx->id;
 
       ictx->owner_lock.get_read();
-      if (ictx->image_watcher->is_lock_supported()) {
+      if (ictx->exclusive_lock != nullptr) {
         r = prepare_image_update(ictx);
-        if (r < 0 || !ictx->image_watcher->is_lock_owner()) {
+        if (r < 0 || !ictx->exclusive_lock->is_lock_owner()) {
 	  lderr(cct) << "cannot obtain exclusive lock - not removing" << dendl;
 	  ictx->owner_lock.put_read();
 	  close_image(ictx);
@@ -2248,8 +2249,8 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
                     ProgressContext &prog_ctx)
   {
     assert(ictx->owner_lock.is_locked());
-    assert(!ictx->image_watcher->is_lock_supported() ||
-	   ictx->image_watcher->is_lock_owner());
+    assert(ictx->exclusive_lock == nullptr ||
+	   ictx->exclusive_lock->is_lock_owner());
 
     CephContext *cct = ictx->cct;
     ictx->snap_lock.get_read();
@@ -2575,7 +2576,8 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     } // release snap_lock and cache_lock
 
     if (ictx->image_watcher != NULL) {
-      ictx->image_watcher->refresh();
+      // TODO handled by new async refresh state machine
+      //ictx->image_watcher->refresh();
     }
 
     if (new_snap) {
@@ -2621,8 +2623,8 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
       if (r < 0) {
 	return -EROFS;
       }
-      if (ictx->image_watcher->is_lock_supported() &&
-	  !ictx->image_watcher->is_lock_owner()) {
+      if (ictx->exclusive_lock != nullptr &&
+	  !ictx->exclusive_lock->is_lock_owner()) {
 	return -EROFS;
       }
 
@@ -2865,13 +2867,14 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     if (snapshot_mode) {
       {
         RWLock::WLocker owner_locker(ictx->owner_lock);
-        if (ictx->image_watcher != NULL &&
-            ictx->image_watcher->is_lock_owner()) {
-          r = ictx->image_watcher->release_lock();
-          if (r < 0) {
-            return r;
-          }
-        }
+        // TODO handled by new async set snap state machine
+        //if (ictx->image_watcher != NULL &&
+        //    ictx->image_watcher->is_lock_owner()) {
+        //  r = ictx->image_watcher->release_lock();
+        //  if (r < 0) {
+        //    return r;
+        //  }
+        //}
       }
 
       ictx->cancel_async_requests();
@@ -2906,7 +2909,8 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
 
     RWLock::RLocker owner_locker(ictx->owner_lock);
     if (ictx->image_watcher != NULL) {
-      ictx->image_watcher->refresh();
+      // TODO handled by new async set snap request state machine
+      //ictx->image_watcher->refresh();
     }
     return r;
   }
@@ -2925,9 +2929,9 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     if (!ictx->read_only) {
       r = ictx->register_watch();
       if (r < 0) {
-	lderr(ictx->cct) << "error registering a watch: " << cpp_strerror(r)
-			 << dendl;
-	goto err_close;
+        lderr(ictx->cct) << "error registering a watch: " << cpp_strerror(r)
+                         << dendl;
+        goto err_close;
       }
     }
 
@@ -2943,7 +2947,8 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
 
     if (ictx->image_watcher != NULL) {
       RWLock::RLocker owner_locker(ictx->owner_lock);
-      ictx->image_watcher->refresh();
+      // TODO handled by new async open image state machine
+      //ictx->image_watcher->refresh();
     }
 
     return 0;
@@ -2966,13 +2971,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     {
       // release the lock (and flush all in-flight IO)
       RWLock::WLocker owner_locker(ictx->owner_lock);
-      if (ictx->image_watcher != NULL && ictx->image_watcher->is_lock_owner()) {
-        r = ictx->image_watcher->release_lock();
-        if (r < 0) {
-          lderr(ictx->cct) << "error releasing image lock: " << cpp_strerror(r)
-                           << dendl;
-        }
-      }
+      // TODO replaced by new async close request
     }
 
     assert(!ictx->aio_work_queue->writes_blocked() ||
@@ -3092,8 +3091,8 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
   void async_flatten(ImageCtx *ictx, Context *ctx, ProgressContext &prog_ctx)
   {
     assert(ictx->owner_lock.is_locked());
-    assert(!ictx->image_watcher->is_lock_supported() ||
-	   ictx->image_watcher->is_lock_owner());
+    assert(ictx->exclusive_lock == nullptr ||
+	   ictx->exclusive_lock->is_lock_owner());
 
     CephContext *cct = ictx->cct;
     ldout(cct, 20) << "flatten" << dendl;
@@ -3174,8 +3173,8 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
   void async_rebuild_object_map(ImageCtx *ictx, Context *ctx,
                                 ProgressContext &prog_ctx) {
     assert(ictx->owner_lock.is_locked());
-    assert(!ictx->image_watcher->is_lock_supported() ||
-	   ictx->image_watcher->is_lock_owner());
+    assert(ictx->exclusive_lock == nullptr ||
+	   ictx->exclusive_lock->is_lock_owner());
 
     CephContext *cct = ictx->cct;
     ldout(cct, 20) << "async_rebuild_object_map " << ictx << dendl;
