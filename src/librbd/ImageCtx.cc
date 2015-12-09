@@ -144,14 +144,11 @@ struct C_InvalidateCache : public Context {
       name(image_name),
       image_watcher(NULL),
       journal(NULL),
-      refresh_seq(0),
-      last_refresh(0),
       owner_lock(util::unique_lock_name("librbd::ImageCtx::owner_lock", this)),
       md_lock(util::unique_lock_name("librbd::ImageCtx::md_lock", this)),
       cache_lock(util::unique_lock_name("librbd::ImageCtx::cache_lock", this)),
       snap_lock(util::unique_lock_name("librbd::ImageCtx::snap_lock", this)),
       parent_lock(util::unique_lock_name("librbd::ImageCtx::parent_lock", this)),
-      refresh_lock(util::unique_lock_name("librbd::ImageCtx::refresh_lock", this)),
       object_map_lock(util::unique_lock_name("librbd::ImageCtx::object_map_lock", this)),
       async_ops_lock(util::unique_lock_name("librbd::ImageCtx::async_ops_lock", this)),
       copyup_list_lock(util::unique_lock_name("librbd::ImageCtx::copyup_list_lock", this)),
@@ -215,112 +212,6 @@ struct C_InvalidateCache : public Context {
     delete aio_work_queue;
     delete asok_hook;
     delete state;
-  }
-
-  int ImageCtx::init_legacy() {
-    int r;
-
-    if (id.length()) {
-      old_format = false;
-    } else {
-      r = detect_format(md_ctx, name, &old_format, NULL);
-      if (r < 0) {
-	lderr(cct) << "error finding header: " << cpp_strerror(r) << dendl;
-	return r;
-      }
-    }
-
-    if (!old_format) {
-      if (!id.length()) {
-	r = cls_client::get_id(&md_ctx, util::id_obj_name(name), &id);
-	if (r < 0) {
-	  lderr(cct) << "error reading image id: " << cpp_strerror(r)
-		     << dendl;
-	  return r;
-	}
-      }
-
-      header_oid = util::header_name(id);
-      apply_metadata_confs();
-      r = cls_client::get_immutable_metadata(&md_ctx, header_oid,
-					     &object_prefix, &order);
-      if (r < 0) {
-	lderr(cct) << "error reading immutable metadata: "
-		   << cpp_strerror(r) << dendl;
-	return r;
-      }
-
-      r = cls_client::get_stripe_unit_count(&md_ctx, header_oid,
-					    &stripe_unit, &stripe_count);
-      if (r < 0 && r != -ENOEXEC && r != -EINVAL) {
-	lderr(cct) << "error reading striping metadata: "
-		   << cpp_strerror(r) << dendl;
-	return r;
-      }
-
-      init_layout();
-    } else {
-      apply_metadata_confs();
-      header_oid = util::old_header_name(name);
-    }
-
-    string pname = string("librbd-") + id + string("-") +
-      data_ctx.get_pool_name() + string("-") + name;
-    if (!snap_name.empty()) {
-      pname += "-";
-      pname += snap_name;
-    }
-
-    perf_start(pname);
-
-    if (cache) {
-      Mutex::Locker l(cache_lock);
-      ldout(cct, 20) << "enabling caching..." << dendl;
-      writeback_handler = new LibrbdWriteback(this, cache_lock);
-
-      uint64_t init_max_dirty = cache_max_dirty;
-      if (cache_writethrough_until_flush)
-	init_max_dirty = 0;
-      ldout(cct, 20) << "Initial cache settings:"
-		     << " size=" << cache_size
-		     << " num_objects=" << 10
-		     << " max_dirty=" << init_max_dirty
-		     << " target_dirty=" << cache_target_dirty
-		     << " max_dirty_age="
-		     << cache_max_dirty_age << dendl;
-
-      object_cacher = new ObjectCacher(cct, pname, *writeback_handler, cache_lock,
-				       NULL, NULL,
-				       cache_size,
-				       10,  /* reset this in init */
-				       init_max_dirty,
-				       cache_target_dirty,
-				       cache_max_dirty_age,
-				       cache_block_writes_upfront);
-
-      // size object cache appropriately
-      uint64_t obj = cache_max_dirty_object;
-      if (!obj) {
-	obj = MIN(2000, MAX(10, cache_size / 100 / sizeof(ObjectCacher::Object)));
-      }
-      ldout(cct, 10) << " cache bytes " << cache_size
-	<< " -> about " << obj << " objects" << dendl;
-      object_cacher->set_max_objects(obj);
-
-      object_set = new ObjectCacher::ObjectSet(NULL, data_ctx.get_id(), 0);
-      object_set->return_enoent = true;
-      object_cacher->start();
-    }
-
-    if (clone_copy_on_read) {
-      copyup_finisher = new Finisher(cct);
-      copyup_finisher->start();
-    }
-
-    readahead.set_trigger_requests(readahead_trigger_requests);
-    readahead.set_max_readahead_size(readahead_max_bytes);
-
-    return 0;
   }
 
   void ImageCtx::init() {
@@ -803,31 +694,11 @@ struct C_InvalidateCache : public Context {
     }
   }
 
-  int ImageCtx::flush_cache() {
-    C_SaferCond cond_ctx;
-    flush_cache(&cond_ctx);
-
-    ldout(cct, 20) << "waiting for cache to be flushed" << dendl;
-    int r = cond_ctx.wait();
-    ldout(cct, 20) << "finished flushing cache" << dendl;
-
-    return r;
-  }
-
   void ImageCtx::flush_cache(Context *onfinish) {
     assert(owner_lock.is_locked());
     cache_lock.Lock();
     object_cacher->flush_set(object_set, onfinish);
     cache_lock.Unlock();
-  }
-
-  int ImageCtx::shutdown_cache() {
-    flush_async_operations();
-
-    RWLock::RLocker owner_locker(owner_lock);
-    int r = invalidate_cache(true);
-    object_cacher->stop();
-    return r;
   }
 
   void ImageCtx::shut_down_cache(Context *on_finish) {

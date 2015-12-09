@@ -357,11 +357,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
   int notify_change(IoCtx& io_ctx, const string& oid, ImageCtx *ictx)
   {
     if (ictx) {
-      ictx->refresh_lock.Lock();
-      ldout(ictx->cct, 20) << "notify_change refresh_seq = " << ictx->refresh_seq
-			   << " last_refresh = " << ictx->last_refresh << dendl;
-      ++ictx->refresh_seq;
-      ictx->refresh_lock.Unlock();
+      ictx->state->handle_update_notification();
     }
 
     ImageWatcher::notify_header_update(io_ctx, oid);
@@ -665,7 +661,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     CephContext *cct = ictx->cct;
     ldout(cct, 20) << "children list " << ictx->name << dendl;
 
-    int r = ictx_check(ictx);
+    int r = ictx->state->refresh_if_required();
     if (r < 0)
       return r;
 
@@ -743,7 +739,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
       return -EROFS;
     }
 
-    int r = ictx_check(ictx);
+    int r = ictx->state->refresh_if_required();
     if (r < 0)
       return r;
 
@@ -776,7 +772,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     ldout(ictx->cct, 20) << "snap_create_helper " << ictx << " " << snap_name
                          << dendl;
 
-    int r = ictx_check(ictx, ictx->owner_lock);
+    int r = ictx->state->refresh_if_required(ictx->owner_lock);
     if (r < 0) {
       ctx->complete(r);
       return;
@@ -794,7 +790,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     if (ictx->read_only)
       return -EROFS;
 
-    int r = ictx_check(ictx);
+    int r = ictx->state->refresh_if_required();
     if (r < 0)
       return r;
 
@@ -847,7 +843,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     ldout(ictx->cct, 20) << "snap_remove_helper " << ictx << " " << snap_name
                          << dendl;
 
-    int r = ictx_check(ictx, ictx->owner_lock);
+    int r = ictx->state->refresh_if_required(ictx->owner_lock);
     if (r < 0) {
       ctx->complete(r);
       return;
@@ -889,7 +885,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
       return -EROFS;
     }
 
-    int r = ictx_check(ictx);
+    int r = ictx->state->refresh_if_required();
     if (r < 0)
       return r;
 
@@ -940,7 +936,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     ldout(ictx->cct, 20) << __func__ << " " << ictx << " from "
                          << src_snap_id << " to " << dst_name << dendl;
 
-    int r = ictx_check(ictx, ictx->owner_lock);
+    int r = ictx->state->refresh_if_required(ictx->owner_lock);
     if (r < 0) {
       ctx->complete(r);
       return;
@@ -960,7 +956,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
       return -EROFS;
     }
 
-    int r = ictx_check(ictx);
+    int r = ictx->state->refresh_if_required();
     if (r < 0) {
       return r;
     }
@@ -1013,7 +1009,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     ldout(ictx->cct, 20) << "snap_protect_helper " << ictx << " " << snap_name
                          << dendl;
 
-    int r = ictx_check(ictx, ictx->owner_lock);
+    int r = ictx->state->refresh_if_required(ictx->owner_lock);
     if (r < 0) {
       ctx->complete(r);
       return;
@@ -1033,7 +1029,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
       return -EROFS;
     }
 
-    int r = ictx_check(ictx);
+    int r = ictx->state->refresh_if_required();
     if (r < 0) {
       return r;
     }
@@ -1088,7 +1084,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     ldout(ictx->cct, 20) << "snap_unprotect_helper " << ictx << " " << snap_name
                          << dendl;
 
-    int r = ictx_check(ictx, ictx->owner_lock);
+    int r = ictx->state->refresh_if_required(ictx->owner_lock);
     if (r < 0) {
       ctx->complete(r);
       return;
@@ -1105,7 +1101,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     ldout(ictx->cct, 20) << "snap_is_protected " << ictx << " " << snap_name
 			 << dendl;
 
-    int r = ictx_check(ictx);
+    int r = ictx->state->refresh_if_required();
     if (r < 0)
       return r;
 
@@ -1513,7 +1509,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     map<string, bufferlist> pairs;
     // make sure parent snapshot exists
     ImageCtx *p_imctx = new ImageCtx(p_name, "", p_snap_name, p_ioctx, true);
-    r = open_image(p_imctx);
+    r = p_imctx->state->open();
     if (r < 0) {
       lderr(cct) << "error opening parent image: "
 		 << cpp_strerror(-r) << dendl;
@@ -1560,7 +1556,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     }
 
     c_imctx = new ImageCtx(c_name, "", NULL, c_ioctx, false);
-    r = open_image(c_imctx);
+    r = c_imctx->state->open();
     if (r < 0) {
       lderr(cct) << "Error opening new image: " << cpp_strerror(r) << dendl;
       goto err_remove;
@@ -1578,8 +1574,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
       goto err_close_child;
     }
 
-    // TODO
-    //p_imctx->refresh(&p_refresh_ctx);
+    p_imctx->state->refresh(&p_refresh_ctx);
     r = p_refresh_ctx.wait();
 
     if (r == 0) {
@@ -1606,8 +1601,8 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     }
 
     ldout(cct, 2) << "done." << dendl;
-    r = close_image(c_imctx);
-    partial_r = close_image(p_imctx);
+    r = c_imctx->state->close();
+    partial_r = p_imctx->state->close();
     if (r == 0 && partial_r < 0) {
       r = partial_r;
     }
@@ -1621,7 +1616,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
                 << cpp_strerror(partial_r) << dendl;
     }
   err_close_child:
-    close_image(c_imctx);
+    c_imctx->state->close();
   err_remove:
     partial_r = remove(c_ioctx, c_name, no_op);
     if (partial_r < 0) {
@@ -1629,7 +1624,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
 		 << cpp_strerror(partial_r) << dendl;
     }
   err_close_parent:
-    close_image(p_imctx);
+    p_imctx->state->close();
     return r;
   }
 
@@ -1640,14 +1635,14 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
 		   << dstname << dendl;
 
     ImageCtx *ictx = new ImageCtx(srcname, "", "", io_ctx, false);
-    int r = open_image(ictx);
+    int r = ictx->state->open();
     if (r < 0) {
       lderr(ictx->cct) << "error opening source image: " << cpp_strerror(r)
 		       << dendl;
       return r;
     }
     BOOST_SCOPE_EXIT((ictx)) {
-      close_image(ictx);
+      ictx->state->close();
     } BOOST_SCOPE_EXIT_END
 
     r = detect_format(io_ctx, dstname, NULL, NULL);
@@ -1698,7 +1693,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     ldout(ictx->cct, 20) << "rename_helper " << ictx << " " << dstname
                          << dendl;
 
-    int r = ictx_check(ictx, ictx->owner_lock);
+    int r = ictx->state->refresh_if_required(ictx->owner_lock);
     if (r < 0) {
       ctx->complete(r);
       return;
@@ -1713,7 +1708,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
   {
     ldout(ictx->cct, 20) << "info " << ictx << dendl;
 
-    int r = ictx_check(ictx);
+    int r = ictx->state->refresh_if_required();
     if (r < 0)
       return r;
 
@@ -1723,7 +1718,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
 
   int get_old_format(ImageCtx *ictx, uint8_t *old)
   {
-    int r = ictx_check(ictx);
+    int r = ictx->state->refresh_if_required();
     if (r < 0)
       return r;
     *old = ictx->old_format;
@@ -1732,7 +1727,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
 
   int get_size(ImageCtx *ictx, uint64_t *size)
   {
-    int r = ictx_check(ictx);
+    int r = ictx->state->refresh_if_required();
     if (r < 0)
       return r;
     RWLock::RLocker l2(ictx->snap_lock);
@@ -1742,7 +1737,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
 
   int get_features(ImageCtx *ictx, uint64_t *features)
   {
-    int r = ictx_check(ictx);
+    int r = ictx->state->refresh_if_required();
     if (r < 0)
       return r;
     RWLock::RLocker l(ictx->snap_lock);
@@ -1752,7 +1747,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
 
   int update_features(ImageCtx *ictx, uint64_t features, bool enabled)
   {
-    int r = ictx_check(ictx);
+    int r = ictx->state->refresh_if_required();
     if (r < 0) {
       return r;
     }
@@ -1904,7 +1899,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
 
   int get_overlap(ImageCtx *ictx, uint64_t *overlap)
   {
-    int r = ictx_check(ictx);
+    int r = ictx->state->refresh_if_required();
     if (r < 0)
       return r;
     RWLock::RLocker l(ictx->snap_lock);
@@ -1915,7 +1910,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
   int get_parent_info(ImageCtx *ictx, string *parent_pool_name,
 		      string *parent_name, string *parent_snap_name)
   {
-    int r = ictx_check(ictx);
+    int r = ictx->state->refresh_if_required();
     if (r < 0)
       return r;
 
@@ -1977,7 +1972,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
 
   int get_flags(ImageCtx *ictx, uint64_t *flags)
   {
-    int r = ictx_check(ictx);
+    int r = ictx->state->refresh_if_required();
     if (r < 0) {
       return r;
     }
@@ -1991,7 +1986,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     CephContext *cct = ictx->cct;
     ldout(cct, 20) << __func__ << " " << ictx << " fd " << fd << " type" << type << dendl;
 
-    int r = ictx_check(ictx);
+    int r = ictx->state->refresh_if_required();
     if (r < 0) {
       return r;
     }
@@ -2018,7 +2013,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     bool old_format = false;
     bool unknown_format = true;
     ImageCtx *ictx = new ImageCtx(imgname, "", NULL, io_ctx, false);
-    int r = open_image(ictx);
+    int r = ictx->state->open();
     if (r < 0) {
       ldout(cct, 2) << "error opening image: " << cpp_strerror(-r) << dendl;
     } else {
@@ -2033,7 +2028,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
         if (r < 0 || !ictx->exclusive_lock->is_lock_owner()) {
 	  lderr(cct) << "cannot obtain exclusive lock - not removing" << dendl;
 	  ictx->owner_lock.put_read();
-	  close_image(ictx);
+	  ictx->state->close();
           return -EBUSY;
         }
       }
@@ -2041,7 +2036,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
       if (ictx->snaps.size()) {
 	lderr(cct) << "image has snapshots - not removing" << dendl;
 	ictx->owner_lock.put_read();
-	close_image(ictx);
+	ictx->state->close();
 	return -ENOTEMPTY;
       }
 
@@ -2050,13 +2045,13 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
       if (r < 0) {
         lderr(cct) << "error listing watchers" << dendl;
 	ictx->owner_lock.put_read();
-        close_image(ictx);
+        ictx->state->close();
         return r;
       }
       if (watchers.size() > 1) {
         lderr(cct) << "image has watchers - not removing" << dendl;
 	ictx->owner_lock.put_read();
-        close_image(ictx);
+        ictx->state->close();
         return -EBUSY;
       }
 
@@ -2072,12 +2067,12 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
       if (r < 0 && r != -ENOENT) {
 	lderr(cct) << "error removing child from children list" << dendl;
 	ictx->owner_lock.put_read();
-        close_image(ictx);
+        ictx->state->close();
 	return r;
       }
 
       ictx->owner_lock.put_read();
-      close_image(ictx);
+      ictx->state->close();
 
       ldout(cct, 2) << "removing header..." << dendl;
       r = io_ctx.remove(header_oid);
@@ -2145,7 +2140,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
 		   << size << dendl;
     ictx->snap_lock.put_read();
 
-    int r = ictx_check(ictx);
+    int r = ictx->state->refresh_if_required();
     if (r < 0) {
       return r;
     }
@@ -2177,7 +2172,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
 		   << size << dendl;
     ictx->snap_lock.put_read();
 
-    int r = ictx_check(ictx, ictx->owner_lock);
+    int r = ictx->state->refresh_if_required(ictx->owner_lock);
     if (r < 0) {
       ctx->complete(r);
       return;
@@ -2200,7 +2195,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
   {
     ldout(ictx->cct, 20) << "snap_list " << ictx << dendl;
 
-    int r = ictx_check(ictx);
+    int r = ictx->state->refresh_if_required();
     if (r < 0)
       return r;
 
@@ -2221,48 +2216,12 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
   {
     ldout(ictx->cct, 20) << "snap_exists " << ictx << " " << snap_name << dendl;
 
-    int r = ictx_check(ictx);
+    int r = ictx->state->refresh_if_required();
     if (r < 0)
       return r;
 
     RWLock::RLocker l(ictx->snap_lock);
     return ictx->get_snap_id(snap_name) != CEPH_NOSNAP;
-  }
-
-  int refresh_parent(ImageCtx *ictx) {
-    assert(ictx->cache_lock.is_locked());
-    assert(ictx->snap_lock.is_wlocked());
-    assert(ictx->parent_lock.is_wlocked());
-
-    // close the parent if it changed or this image no longer needs
-    // to read from it
-    int r;
-    if (ictx->parent) {
-      uint64_t overlap;
-      r = ictx->get_parent_overlap(ictx->snap_id, &overlap);
-      if (r < 0 && r != -ENOENT) {
-	return r;
-      }
-      if (r == -ENOENT || overlap == 0 ||
-	  ictx->parent->md_ctx.get_id() !=
-            ictx->get_parent_pool_id(ictx->snap_id) ||
-	  ictx->parent->id != ictx->get_parent_image_id(ictx->snap_id) ||
-	  ictx->parent->snap_id != ictx->get_parent_snap_id(ictx->snap_id)) {
-	ictx->clear_nonexistence_cache();
-	close_parent(ictx);
-      }
-    }
-
-    if (ictx->get_parent_pool_id(ictx->snap_id) > -1 && !ictx->parent) {
-      r = open_parent(ictx);
-      if (r < 0) {
-	lderr(ictx->cct) << "error opening parent snapshot: "
-			 << cpp_strerror(r) << dendl;
-	return r;
-      }
-    }
-
-    return 0;
   }
 
   int snap_rollback(ImageCtx *ictx, const char *snap_name,
@@ -2272,7 +2231,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     ldout(cct, 20) << "snap_rollback " << ictx << " snap = " << snap_name
 		   << dendl;
 
-    int r = ictx_check(ictx);
+    int r = ictx->state->refresh_if_required();
     if (r < 0)
       return r;
 
@@ -2388,14 +2347,14 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
 
     ImageCtx *dest = new librbd::ImageCtx(destname, "", NULL,
 					  dest_md_ctx, false);
-    r = open_image(dest);
+    r = dest->state->open();
     if (r < 0) {
       lderr(cct) << "failed to read newly created header" << dendl;
       return r;
     }
 
     r = copy(src, dest, prog_ctx);
-    int close_r = close_image(dest);
+    int close_r = dest->state->close();
     if (r == 0 && close_r < 0) {
       r = close_r;
     }
@@ -2509,8 +2468,6 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     return r;
   }
 
-  // common snap_set functionality for snap_set and open_image
-
   int snap_set(ImageCtx *ictx, const char *snap_name)
   {
     ldout(ictx->cct, 20) << "snap_set " << ictx << " snap = "
@@ -2518,64 +2475,20 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
 
     // ignore return value, since we may be set to a non-existent
     // snapshot and the user is trying to fix that
-    ictx_check(ictx);
-
-    int r;
-    bool snapshot_mode = (snap_name != NULL && strlen(snap_name) != 0);
-    if (snapshot_mode) {
-      {
-        RWLock::WLocker owner_locker(ictx->owner_lock);
-        // TODO handled by new async set snap state machine
-        //if (ictx->image_watcher != NULL &&
-        //    ictx->image_watcher->is_lock_owner()) {
-        //  r = ictx->image_watcher->release_lock();
-        //  if (r < 0) {
-        //    return r;
-        //  }
-        //}
-      }
-
-      ictx->cancel_async_requests();
-      {
-        RWLock::RLocker owner_locker(ictx->owner_lock);
-        r = ictx->flush();
-      }
-
-      {
-        RWLock::WLocker snap_locker(ictx->snap_lock);
-        if (ictx->journal != NULL) {
-          r = ictx->close_journal(false);
-          if (r < 0) {
-            return r;
-          }
-        }
-      }
-    }
+    ictx->state->refresh_if_required();
 
     C_SaferCond ctx;
-    image::SetSnapRequest<> *request = image::SetSnapRequest<>::create(
-      *ictx, snap_name == nullptr ? "" : snap_name, &ctx);
-    request->send();
+    std::string name(snap_name == nullptr ? "" : snap_name);
+    ictx->state->snap_set(name, &ctx);
 
-    r = ctx.wait();
+    int r = ctx.wait();
     if (r < 0) {
+      lderr(ictx->cct) << "failed to " << (name.empty() ? "un" : "") << "set "
+                       << "snapshot: " << cpp_strerror(r) << dendl;
       return r;
     }
 
-    {
-      RWLock::WLocker snap_locker(ictx->snap_lock);
-      if ((ictx->features & RBD_FEATURE_JOURNALING) != 0 &&
-          ictx->journal == NULL && !snapshot_mode) {
-        ictx->open_journal();
-      }
-    }
-
-    RWLock::RLocker owner_locker(ictx->owner_lock);
-    if (ictx->image_watcher != NULL) {
-      // TODO handled by new async set snap request state machine
-      //ictx->image_watcher->refresh();
-    }
-    return r;
+    return 0;
   }
 
   // 'flatten' child image by copying all parent's blocks
@@ -2584,7 +2497,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     CephContext *cct = ictx->cct;
     ldout(cct, 20) << "flatten" << dendl;
 
-    int r = ictx_check(ictx);
+    int r = ictx->state->refresh_if_required();
     if (r < 0) {
       return r;
     }
@@ -2628,8 +2541,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     ldout(cct, 20) << "flatten" << dendl;
 
     int r;
-    // ictx_check also updates parent data
-    if ((r = ictx_check(ictx, ictx->owner_lock)) < 0) {
+    if ((r = ictx->state->refresh_if_required(ictx->owner_lock)) < 0) {
       lderr(cct) << "ictx_check failed" << dendl;
       ctx->complete(r);
       return;
@@ -2680,7 +2592,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     CephContext *cct = ictx->cct;
     ldout(cct, 10) << "rebuild_object_map" << dendl;
 
-    int r = ictx_check(ictx);
+    int r = ictx->state->refresh_if_required();
     if (r < 0) {
       return r;
     }
@@ -2718,7 +2630,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
       return;
     }
 
-    int r = ictx_check(ictx, ictx->owner_lock);
+    int r = ictx->state->refresh_if_required(ictx->owner_lock);
     if (r < 0) {
       ctx->complete(r);
       return;
@@ -2736,7 +2648,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
   {
     ldout(ictx->cct, 20) << "list_locks on image " << ictx << dendl;
 
-    int r = ictx_check(ictx);
+    int r = ictx->state->refresh_if_required();
     if (r < 0)
       return r;
 
@@ -2768,7 +2680,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
 			 << " cookie='" << cookie << "' tag='" << tag << "'"
 			 << dendl;
 
-    int r = ictx_check(ictx);
+    int r = ictx->state->refresh_if_required();
     if (r < 0)
       return r;
 
@@ -2792,8 +2704,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     ldout(ictx->cct, 20) << "unlock image " << ictx
 			 << " cookie='" << cookie << "'" << dendl;
 
-
-    int r = ictx_check(ictx);
+    int r = ictx->state->refresh_if_required();
     if (r < 0)
       return r;
 
@@ -2812,7 +2723,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     ldout(ictx->cct, 20) << "break_lock image " << ictx << " client='" << client
 			 << "' cookie='" << cookie << "'" << dendl;
 
-    int r = ictx_check(ictx);
+    int r = ictx->state->refresh_if_required();
     if (r < 0)
       return r;
 
@@ -2886,7 +2797,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     ldout(ictx->cct, 20) << "read_iterate " << ictx << " off = " << off
 			 << " len = " << len << dendl;
 
-    int r = ictx_check(ictx);
+    int r = ictx->state->refresh_if_required();
     if (r < 0)
       return r;
 
@@ -2948,7 +2859,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
       ictx->flush();
     }
 
-    int r = ictx_check(ictx);
+    int r = ictx->state->refresh_if_required();
     if (r < 0) {
       return r;
     }
@@ -2996,7 +2907,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     CephContext *cct = ictx->cct;
     ldout(cct, 20) << "flush " << ictx << dendl;
 
-    int r = ictx_check(ictx);
+    int r = ictx->state->refresh_if_required();
     if (r < 0) {
       return r;
     }
@@ -3015,7 +2926,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     CephContext *cct = ictx->cct;
     ldout(cct, 20) << "invalidate_cache " << ictx << dendl;
 
-    int r = ictx_check(ictx);
+    int r = ictx->state->refresh_if_required();
     if (r < 0) {
       return r;
     }
@@ -3049,7 +2960,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     CephContext *cct = ictx->cct;
     ldout(cct, 20) << "metadata_get " << ictx << " key=" << key << dendl;
 
-    int r = ictx_check(ictx);
+    int r = ictx->state->refresh_if_required();
     if (r < 0) {
       return r;
     }
@@ -3062,7 +2973,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     CephContext *cct = ictx->cct;
     ldout(cct, 20) << "metadata_set " << ictx << " key=" << key << " value=" << value << dendl;
 
-    int r = ictx_check(ictx);
+    int r = ictx->state->refresh_if_required();
     if (r < 0) {
       return r;
     }
@@ -3077,7 +2988,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     CephContext *cct = ictx->cct;
     ldout(cct, 20) << "metadata_remove " << ictx << " key=" << key << dendl;
 
-    int r = ictx_check(ictx);
+    int r = ictx->state->refresh_if_required();
     if (r < 0) {
       return r;
     }
@@ -3090,7 +3001,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     CephContext *cct = ictx->cct;
     ldout(cct, 20) << "metadata_list " << ictx << dendl;
 
-    int r = ictx_check(ictx);
+    int r = ictx->state->refresh_if_required();
     if (r < 0) {
       return r;
     }

@@ -28,6 +28,7 @@
 #include "librbd/AioImageRequestWQ.h"
 #include "cls/rbd/cls_rbd_client.h"
 #include "librbd/ImageCtx.h"
+#include "librbd/ImageState.h"
 #include "librbd/internal.h"
 #include "librbd/LibrbdWriteback.h"
 
@@ -120,11 +121,11 @@ namespace librbd {
     tracepoint(librbd, open_image_enter, ictx, ictx->name.c_str(), ictx->id.c_str(), ictx->snap_name.c_str(), ictx->read_only);
 
     if (image.ctx != NULL) {
-      close_image(reinterpret_cast<ImageCtx*>(image.ctx));
+      reinterpret_cast<ImageCtx*>(image.ctx)->state->close();
       image.ctx = NULL;
     }
 
-    int r = librbd::open_image(ictx);
+    int r = ictx->state->open();
     if (r < 0) {
       tracepoint(librbd, open_image_exit, r);
       return r;
@@ -143,11 +144,11 @@ namespace librbd {
     tracepoint(librbd, open_image_enter, ictx, ictx->name.c_str(), ictx->id.c_str(), ictx->snap_name.c_str(), ictx->read_only);
 
     if (image.ctx != NULL) {
-      close_image(reinterpret_cast<ImageCtx*>(image.ctx));
+      reinterpret_cast<ImageCtx*>(image.ctx)->state->close();
       image.ctx = NULL;
     }
 
-    int r = librbd::open_image(ictx);
+    int r = ictx->state->open();
     if (r < 0) {
       tracepoint(librbd, open_image_exit, r);
       return r;
@@ -422,8 +423,10 @@ namespace librbd {
     if (ctx) {
       ImageCtx *ictx = (ImageCtx *)ctx;
       tracepoint(librbd, close_image_enter, ictx, ictx->name.c_str(), ictx->id.c_str());
-      r = close_image(ictx);
+
+      r = ictx->state->close();
       ctx = NULL;
+
       tracepoint(librbd, close_image_exit, r);
     }
     return r;
@@ -1539,7 +1542,8 @@ extern "C" int rbd_open(rados_ioctx_t p, const char *name, rbd_image_t *image,
   librbd::ImageCtx *ictx = new librbd::ImageCtx(name, "", snap_name, io_ctx,
 						false);
   tracepoint(librbd, open_image_enter, ictx, ictx->name.c_str(), ictx->id.c_str(), ictx->snap_name.c_str(), ictx->read_only);
-  int r = librbd::open_image(ictx);
+
+  int r = ictx->state->open();
   if (r >= 0)
     *image = (rbd_image_t)ictx;
   tracepoint(librbd, open_image_exit, r);
@@ -1555,7 +1559,8 @@ extern "C" int rbd_open_read_only(rados_ioctx_t p, const char *name,
   librbd::ImageCtx *ictx = new librbd::ImageCtx(name, "", snap_name, io_ctx,
 						true);
   tracepoint(librbd, open_image_enter, ictx, ictx->name.c_str(), ictx->id.c_str(), ictx->snap_name.c_str(), ictx->read_only);
-  int r = librbd::open_image(ictx);
+
+  int r = ictx->state->open();
   if (r >= 0)
     *image = (rbd_image_t)ictx;
   tracepoint(librbd, open_image_exit, r);
@@ -1566,7 +1571,9 @@ extern "C" int rbd_close(rbd_image_t image)
 {
   librbd::ImageCtx *ctx = (librbd::ImageCtx *)image;
   tracepoint(librbd, close_image_enter, ctx, ctx->name.c_str(), ctx->id.c_str());
-  int r = librbd::close_image(ctx);
+
+  int r = ctx->state->close();
+
   tracepoint(librbd, close_image_exit, r);
   return r;
 }

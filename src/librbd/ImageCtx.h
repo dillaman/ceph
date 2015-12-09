@@ -196,7 +196,6 @@ namespace librbd {
     ImageCtx(const std::string &image_name, const std::string &image_id,
 	     const char *snap, IoCtx& p, bool read_only);
     ~ImageCtx();
-    int init_legacy();   // TODO
     void init();
     void init_layout();
     void perf_start(std::string name);
@@ -247,9 +246,7 @@ namespace librbd {
 			uint64_t off, Context *onfinish, int fadvise_flags,
                         uint64_t journal_tid);
     void user_flushed();
-    int flush_cache();
     void flush_cache(Context *onfinish);
-    int shutdown_cache(); // TODO
     void shut_down_cache(Context *on_finish);
     int invalidate_cache(bool purge_on_error=false);
     void invalidate_cache(Context *on_finish);
