@@ -4,6 +4,7 @@
 #include "test/librbd/test_support.h"
 #include "include/stringify.h"
 #include "librbd/AioImageRequestWQ.h"
+#include "librbd/ExclusiveLock.h"
 #include "librbd/ImageWatcher.h"
 #include "cls/lock/cls_lock_client.h"
 #include "cls/lock/cls_lock_types.h"
@@ -93,5 +94,6 @@ int TestFixture::acquire_exclusive_lock(librbd::ImageCtx &ictx) {
   }
 
   RWLock::RLocker owner_locker(ictx.owner_lock);
-  return ictx.image_watcher->is_lock_owner() ? 0 : -EINVAL;
+  assert(ictx.exclusive_lock != nullptr);
+  return ictx.exclusive_lock->is_lock_owner() ? 0 : -EINVAL;
 }

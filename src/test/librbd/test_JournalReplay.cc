@@ -6,6 +6,7 @@
 #include "librbd/AioCompletion.h"
 #include "librbd/AioImageRequest.h"
 #include "librbd/AioImageRequestWQ.h"
+#include "librbd/ExclusiveLock.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/ImageWatcher.h"
 #include "librbd/Journal.h"
@@ -17,39 +18,6 @@ void register_test_journal_replay() {
 class TestJournalReplay : public TestFixture {
 public:
 
-  struct Listener : public librbd::ImageWatcher::Listener{
-    Mutex lock;
-    Cond cond;
-
-    Listener() : lock("TestJournalReplay::Listener::lock") {
-    }
-    virtual bool handle_requested_lock() {
-      return true;
-    }
-    virtual void handle_releasing_lock() {
-    }
-    virtual void handle_lock_updated(
-        librbd::ImageWatcher::LockUpdateState state) {
-      Mutex::Locker locker(lock);
-      cond.Signal();
-    }
-  };
-
-  void wait_for_lock_owner(librbd::ImageCtx *ictx) {
-    Listener listener;
-    ictx->image_watcher->register_listener(&listener);
-    {
-      RWLock::RLocker owner_locker(ictx->owner_lock);
-      while (!ictx->image_watcher->is_lock_owner()) {
-        ictx->owner_lock.put_read();
-        listener.lock.Lock();
-        listener.cond.Wait(listener.lock);
-        listener.lock.Unlock();
-        ictx->owner_lock.get_read();
-      }
-    }
-    ictx->image_watcher->unregister_listener(&listener);
-  }
 };
 
 TEST_F(TestJournalReplay, AioDiscardEvent) {
@@ -84,11 +52,12 @@ TEST_F(TestJournalReplay, AioDiscardEvent) {
 
   // inject a discard operation into the journal
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
+  C_SaferCond lock_ctx;
   {
     RWLock::WLocker owner_locker(ictx->owner_lock);
-    ictx->image_watcher->request_lock();
+    ictx->exclusive_lock->request_lock(&lock_ctx);
   }
-  wait_for_lock_owner(ictx);
+  ASSERT_EQ(0, lock_ctx.wait());
 
   ictx->journal->open();
   ictx->journal->wait_for_journal_ready();
@@ -120,11 +89,13 @@ TEST_F(TestJournalReplay, AioWriteEvent) {
   // inject a write operation into the journal
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
+
+  C_SaferCond lock_ctx;
   {
     RWLock::WLocker owner_locker(ictx->owner_lock);
-    ictx->image_watcher->request_lock();
+    ictx->exclusive_lock->request_lock(&lock_ctx);
   }
-  wait_for_lock_owner(ictx);
+  ASSERT_EQ(0, lock_ctx.wait());
 
   ictx->journal->open();
   ictx->journal->wait_for_journal_ready();
@@ -159,12 +130,14 @@ TEST_F(TestJournalReplay, AioFlushEvent) {
 
   // inject a flush operation into the journal
   librbd::ImageCtx *ictx;
+
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
+  C_SaferCond lock_ctx;
   {
     RWLock::WLocker owner_locker(ictx->owner_lock);
-    ictx->image_watcher->request_lock();
+    ictx->exclusive_lock->request_lock(&lock_ctx);
   }
-  wait_for_lock_owner(ictx);
+  ASSERT_EQ(0, lock_ctx.wait());
 
   ictx->journal->open();
   ictx->journal->wait_for_journal_ready();

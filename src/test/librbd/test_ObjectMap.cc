@@ -2,6 +2,7 @@
 // vim: ts=8 sw=2 smarttab
 #include "test/librbd/test_fixture.h"
 #include "test/librbd/test_support.h"
+#include "librbd/ExclusiveLock.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/ImageWatcher.h"
 #include "librbd/internal.h"
@@ -23,10 +24,12 @@ TEST_F(TestObjectMap, RefreshInvalidatesWhenCorrupt) {
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
   ASSERT_FALSE(ictx->test_flags(RBD_FLAG_OBJECT_MAP_INVALID));
 
+  C_SaferCond lock_ctx;
   {
     RWLock::WLocker owner_locker(ictx->owner_lock);
-    ASSERT_EQ(0, ictx->image_watcher->try_lock());
+    ictx->exclusive_lock->try_lock(&lock_ctx);
   }
+  ASSERT_EQ(0, lock_ctx.wait());
 
   std::string oid = librbd::ObjectMap::object_map_name(ictx->id, CEPH_NOSNAP);
   bufferlist bl;
@@ -36,7 +39,7 @@ TEST_F(TestObjectMap, RefreshInvalidatesWhenCorrupt) {
   {
     RWLock::RLocker owner_locker(ictx->owner_lock);
     RWLock::WLocker snap_locker(ictx->snap_lock);
-    ictx->object_map.refresh(CEPH_NOSNAP);
+    ictx->object_map->refresh(CEPH_NOSNAP);
   }
   ASSERT_TRUE(ictx->test_flags(RBD_FLAG_OBJECT_MAP_INVALID));
 }
@@ -48,10 +51,12 @@ TEST_F(TestObjectMap, RefreshInvalidatesWhenTooSmall) {
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
   ASSERT_FALSE(ictx->test_flags(RBD_FLAG_OBJECT_MAP_INVALID));
 
+  C_SaferCond lock_ctx;
   {
     RWLock::WLocker owner_locker(ictx->owner_lock);
-    ASSERT_EQ(0, ictx->image_watcher->try_lock());
+    ictx->exclusive_lock->try_lock(&lock_ctx);
   }
+  ASSERT_EQ(0, lock_ctx.wait());
 
   librados::ObjectWriteOperation op;
   librbd::cls_client::object_map_resize(&op, 0, OBJECT_NONEXISTENT);
@@ -62,7 +67,7 @@ TEST_F(TestObjectMap, RefreshInvalidatesWhenTooSmall) {
   {
     RWLock::RLocker owner_locker(ictx->owner_lock);
     RWLock::WLocker snap_locker(ictx->snap_lock);
-    ictx->object_map.refresh(CEPH_NOSNAP);
+    ictx->object_map->refresh(CEPH_NOSNAP);
   }
   ASSERT_TRUE(ictx->test_flags(RBD_FLAG_OBJECT_MAP_INVALID));
 }
@@ -74,10 +79,12 @@ TEST_F(TestObjectMap, InvalidateFlagOnDisk) {
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
   ASSERT_FALSE(ictx->test_flags(RBD_FLAG_OBJECT_MAP_INVALID));
 
+  C_SaferCond lock_ctx;
   {
     RWLock::WLocker owner_locker(ictx->owner_lock);
-    ASSERT_EQ(0, ictx->image_watcher->try_lock());
+    ictx->exclusive_lock->try_lock(&lock_ctx);
   }
+  ASSERT_EQ(0, lock_ctx.wait());
 
   std::string oid = librbd::ObjectMap::object_map_name(ictx->id, CEPH_NOSNAP);
   bufferlist bl;
@@ -87,7 +94,7 @@ TEST_F(TestObjectMap, InvalidateFlagOnDisk) {
   {
     RWLock::RLocker owner_locker(ictx->owner_lock);
     RWLock::WLocker snap_locker(ictx->snap_lock);
-    ictx->object_map.refresh(CEPH_NOSNAP);
+    ictx->object_map->refresh(CEPH_NOSNAP);
   }
   ASSERT_TRUE(ictx->test_flags(RBD_FLAG_OBJECT_MAP_INVALID));
 
@@ -113,7 +120,7 @@ TEST_F(TestObjectMap, InvalidateFlagInMemoryOnly) {
   {
     RWLock::RLocker owner_locker(ictx->owner_lock);
     RWLock::WLocker snap_locker(ictx->snap_lock);
-    ictx->object_map.refresh(CEPH_NOSNAP);
+    ictx->object_map->refresh(CEPH_NOSNAP);
   }
   ASSERT_TRUE(ictx->test_flags(RBD_FLAG_OBJECT_MAP_INVALID));
 

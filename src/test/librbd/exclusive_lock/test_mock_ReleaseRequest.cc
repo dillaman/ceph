@@ -69,7 +69,7 @@ TEST_F(TestMockExclusiveLockReleaseRequest, Success) {
   expect_close_journal(mock_image_ctx, *mock_journal, -EINVAL);
 
   MockObjectMap *mock_object_map = new MockObjectMap();
-  mock_image_ctx.object_map_ptr = mock_object_map;
+  mock_image_ctx.object_map = mock_object_map;
   expect_unlock_object_map(mock_image_ctx, *mock_object_map);
 
   expect_unlock(mock_image_ctx, 0);
@@ -94,7 +94,7 @@ TEST_F(TestMockExclusiveLockReleaseRequest, SuccessJournalDisabled) {
   expect_cancel_op_requests(mock_image_ctx, 0);
 
   MockObjectMap *mock_object_map = new MockObjectMap();
-  mock_image_ctx.object_map_ptr = mock_object_map;
+  mock_image_ctx.object_map = mock_object_map;
   expect_unlock_object_map(mock_image_ctx, *mock_object_map);
 
   expect_unlock(mock_image_ctx, 0);

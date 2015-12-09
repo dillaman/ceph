@@ -49,11 +49,8 @@ public:
   }
 
   void expect_object_map_snap_remove(MockImageCtx &mock_image_ctx, int r) {
-    bool enabled = mock_image_ctx.image_ctx->test_features(RBD_FEATURE_OBJECT_MAP);
-    EXPECT_CALL(mock_image_ctx.object_map, enabled(_))
-                  .WillOnce(Return(enabled));
-    if (enabled) {
-      EXPECT_CALL(mock_image_ctx.object_map, snapshot_remove(_, _))
+    if (mock_image_ctx.object_map != nullptr) {
+      EXPECT_CALL(*mock_image_ctx.object_map, snapshot_remove(_, _))
                     .WillOnce(WithArg<1>(CompleteContext(
                       r, mock_image_ctx.image_ctx->op_work_queue)));
     }
@@ -87,8 +84,10 @@ public:
       return;
     }
 
-    EXPECT_CALL(*mock_image_ctx.image_watcher, is_lock_owner())
-                  .WillRepeatedly(Return(false));
+    if (mock_image_ctx.exclusive_lock != nullptr) {
+      EXPECT_CALL(*mock_image_ctx.exclusive_lock, is_lock_owner())
+                    .WillRepeatedly(Return(false));
+    }
   }
 
   void expect_snap_remove(MockImageCtx &mock_image_ctx, int r) {
@@ -123,6 +122,16 @@ TEST_F(TestMockOperationSnapshotRemoveRequest, Success) {
   ASSERT_EQ(0, librbd::ictx_check(ictx));
 
   MockImageCtx mock_image_ctx(*ictx);
+
+  MockExclusiveLock mock_exclusive_lock;
+  if (mock_image_ctx.test_features(RBD_FEATURE_EXCLUSIVE_LOCK)) {
+    mock_image_ctx.exclusive_lock = &mock_exclusive_lock;
+  }
+
+  MockObjectMap mock_object_map;
+  if (mock_image_ctx.test_features(RBD_FEATURE_OBJECT_MAP)) {
+    mock_image_ctx.object_map = &mock_object_map;
+  }
 
   expect_op_work_queue(mock_image_ctx);
 
@@ -167,6 +176,16 @@ TEST_F(TestMockOperationSnapshotRemoveRequest, FlattenedCloneRemovesChild) {
 
   MockImageCtx mock_image_ctx(*ictx);
 
+  MockExclusiveLock mock_exclusive_lock;
+  if (mock_image_ctx.test_features(RBD_FEATURE_EXCLUSIVE_LOCK)) {
+    mock_image_ctx.exclusive_lock = &mock_exclusive_lock;
+  }
+
+  MockObjectMap mock_object_map;
+  if (mock_image_ctx.test_features(RBD_FEATURE_OBJECT_MAP)) {
+    mock_image_ctx.object_map = &mock_object_map;
+  }
+
   expect_op_work_queue(mock_image_ctx);
 
   uint64_t snap_id = ictx->snap_info.rbegin()->first;
@@ -198,6 +217,11 @@ TEST_F(TestMockOperationSnapshotRemoveRequest, ObjectMapSnapRemoveError) {
 
   MockImageCtx mock_image_ctx(*ictx);
 
+  MockObjectMap mock_object_map;
+  if (mock_image_ctx.test_features(RBD_FEATURE_OBJECT_MAP)) {
+    mock_image_ctx.object_map = &mock_object_map;
+  }
+
   expect_op_work_queue(mock_image_ctx);
 
   ::testing::InSequence seq;
@@ -221,6 +245,11 @@ TEST_F(TestMockOperationSnapshotRemoveRequest, RemoveChildParentError) {
   ASSERT_EQ(0, librbd::ictx_check(ictx));
 
   MockImageCtx mock_image_ctx(*ictx);
+
+  MockObjectMap mock_object_map;
+  if (mock_image_ctx.test_features(RBD_FEATURE_OBJECT_MAP)) {
+    mock_image_ctx.object_map = &mock_object_map;
+  }
 
   expect_op_work_queue(mock_image_ctx);
 
@@ -266,6 +295,11 @@ TEST_F(TestMockOperationSnapshotRemoveRequest, RemoveChildError) {
 
   MockImageCtx mock_image_ctx(*ictx);
 
+  MockObjectMap mock_object_map;
+  if (mock_image_ctx.test_features(RBD_FEATURE_OBJECT_MAP)) {
+    mock_image_ctx.object_map = &mock_object_map;
+  }
+
   expect_op_work_queue(mock_image_ctx);
 
   uint64_t snap_id = ictx->snap_info.rbegin()->first;
@@ -290,6 +324,16 @@ TEST_F(TestMockOperationSnapshotRemoveRequest, RemoveSnapError) {
   ASSERT_EQ(0, librbd::ictx_check(ictx));
 
   MockImageCtx mock_image_ctx(*ictx);
+
+  MockExclusiveLock mock_exclusive_lock;
+  if (mock_image_ctx.test_features(RBD_FEATURE_EXCLUSIVE_LOCK)) {
+    mock_image_ctx.exclusive_lock = &mock_exclusive_lock;
+  }
+
+  MockObjectMap mock_object_map;
+  if (mock_image_ctx.test_features(RBD_FEATURE_OBJECT_MAP)) {
+    mock_image_ctx.object_map = &mock_object_map;
+  }
 
   expect_op_work_queue(mock_image_ctx);
 
