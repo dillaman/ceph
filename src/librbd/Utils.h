@@ -64,8 +64,8 @@ protected:
       if (destroy) {
         delete obj;
       }
-      Context::complete(r);
     }
+    Context::complete(r);
   }
   virtual void finish(int r) override {
   }
