@@ -16,6 +16,7 @@
 #include "librbd/AsyncRequest.h"
 #include "librbd/internal.h"
 #include "librbd/ImageCtx.h"
+#include "librbd/ImageState.h"
 #include "librbd/ImageWatcher.h"
 #include "librbd/Journal.h"
 #include "librbd/LibrbdAdminSocketHook.h"
@@ -164,9 +165,9 @@ struct C_InvalidateCache : public Context {
       object_cacher(NULL), writeback_handler(NULL), object_set(NULL),
       readahead(),
       total_bytes_read(0), copyup_finisher(NULL),
-      exclusive_lock(nullptr),
+      state(new ImageState<>(this)), exclusive_lock(nullptr),
       object_map(nullptr), aio_work_queue(NULL), op_work_queue(NULL),
-      refresh_in_progress(false), asok_hook(new LibrbdAdminSocketHook(this))
+      asok_hook(new LibrbdAdminSocketHook(this))
   {
     md_ctx.dup(p);
     data_ctx.dup(p);
@@ -212,8 +213,8 @@ struct C_InvalidateCache : public Context {
 
     delete op_work_queue;
     delete aio_work_queue;
-
     delete asok_hook;
+    delete state;
   }
 
   int ImageCtx::init_legacy() {
