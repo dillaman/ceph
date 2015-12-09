@@ -6,10 +6,14 @@
 
 #include "include/rados/librados.hpp"
 #include "include/Context.h"
+#include <type_traits>
 
 class Context;
 
 namespace librbd {
+
+class ImageCtx;
+
 namespace util {
 
 namespace detail {
@@ -67,6 +71,19 @@ protected:
   }
 };
 
+template <typename WQ>
+struct C_AsyncCallback : public Context {
+  WQ *op_work_queue;
+  Context *on_finish;
+
+  C_AsyncCallback(WQ *op_work_queue, Context *on_finish)
+    : op_work_queue(op_work_queue), on_finish(on_finish) {
+  }
+  virtual void finish(int r) {
+    op_work_queue->queue(on_finish);
+  }
+};
+
 } // namespace detail
 
 const std::string id_obj_name(const std::string &name);
@@ -106,6 +123,14 @@ Context *create_context_callback(T *obj) {
 template <typename T, Context*(T::*MF)(int*), bool destroy=true>
 Context *create_context_callback(T *obj) {
   return new detail::C_StateCallbackAdapter<T, MF, destroy>(obj);
+}
+
+template <typename I>
+Context *create_async_context_callback(I &image_ctx, Context *on_finish) {
+  // use async callback to acquire a clean lock context
+  return new detail::C_AsyncCallback<
+    typename std::decay<decltype(*image_ctx.op_work_queue)>::type>(
+      image_ctx.op_work_queue, on_finish);
 }
 
 } // namespace util
