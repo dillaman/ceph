@@ -259,20 +259,6 @@ TEST_F(TestMockObjectMapRefreshRequest, ResizeError) {
   when_apply_refresh_request(mock_image_ctx, req);
 }
 
-TEST_F(TestMockObjectMapRefreshRequest, StaleRefresh) {
-  librbd::ImageCtx *ictx;
-  ASSERT_EQ(0, open_image(m_image_name, &ictx));
-
-  MockImageCtx mock_image_ctx(*ictx);
-
-  C_SaferCond ctx;
-  ceph::BitVector<2> object_map;
-  MockRefreshRequest *req = new MockRefreshRequest(mock_image_ctx, &object_map,
-                                                   TEST_SNAP_ID, &ctx);
-  ASSERT_THROW(when_apply_refresh_request(mock_image_ctx, req),
-               ceph::FailedAssertion);
-}
-
 TEST_F(TestMockObjectMapRefreshRequest, Discard) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));

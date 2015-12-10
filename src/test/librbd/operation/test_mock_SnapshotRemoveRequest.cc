@@ -6,6 +6,7 @@
 #include "test/librbd/mock/MockImageCtx.h"
 #include "test/librados_test_stub/MockTestMemIoCtxImpl.h"
 #include "common/bit_vector.hpp"
+#include "librbd/ImageState.h"
 #include "librbd/internal.h"
 #include "librbd/operation/SnapshotRemoveRequest.h"
 #include "gmock/gmock.h"
@@ -119,17 +120,17 @@ TEST_F(TestMockOperationSnapshotRemoveRequest, Success) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
   ASSERT_EQ(0, librbd::snap_create(ictx, "snap1"));
-  ASSERT_EQ(0, librbd::ictx_check(ictx));
+  ASSERT_EQ(0, ictx->state->refresh_if_required());
 
   MockImageCtx mock_image_ctx(*ictx);
 
   MockExclusiveLock mock_exclusive_lock;
-  if (mock_image_ctx.test_features(RBD_FEATURE_EXCLUSIVE_LOCK)) {
+  if (ictx->test_features(RBD_FEATURE_EXCLUSIVE_LOCK)) {
     mock_image_ctx.exclusive_lock = &mock_exclusive_lock;
   }
 
   MockObjectMap mock_object_map;
-  if (mock_image_ctx.test_features(RBD_FEATURE_OBJECT_MAP)) {
+  if (ictx->test_features(RBD_FEATURE_OBJECT_MAP)) {
     mock_image_ctx.object_map = &mock_object_map;
   }
 
@@ -172,17 +173,17 @@ TEST_F(TestMockOperationSnapshotRemoveRequest, FlattenedCloneRemovesChild) {
 
   librbd::NoOpProgressContext prog_ctx;
   ASSERT_EQ(0, librbd::flatten(ictx, prog_ctx));
-  ASSERT_EQ(0, librbd::ictx_check(ictx));
+  ASSERT_EQ(0, ictx->state->refresh_if_required());
 
   MockImageCtx mock_image_ctx(*ictx);
 
   MockExclusiveLock mock_exclusive_lock;
-  if (mock_image_ctx.test_features(RBD_FEATURE_EXCLUSIVE_LOCK)) {
+  if (ictx->test_features(RBD_FEATURE_EXCLUSIVE_LOCK)) {
     mock_image_ctx.exclusive_lock = &mock_exclusive_lock;
   }
 
   MockObjectMap mock_object_map;
-  if (mock_image_ctx.test_features(RBD_FEATURE_OBJECT_MAP)) {
+  if (ictx->test_features(RBD_FEATURE_OBJECT_MAP)) {
     mock_image_ctx.object_map = &mock_object_map;
   }
 
@@ -213,12 +214,12 @@ TEST_F(TestMockOperationSnapshotRemoveRequest, ObjectMapSnapRemoveError) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
   ASSERT_EQ(0, librbd::snap_create(ictx, "snap1"));
-  ASSERT_EQ(0, librbd::ictx_check(ictx));
+  ASSERT_EQ(0, ictx->state->refresh_if_required());
 
   MockImageCtx mock_image_ctx(*ictx);
 
   MockObjectMap mock_object_map;
-  if (mock_image_ctx.test_features(RBD_FEATURE_OBJECT_MAP)) {
+  if (ictx->test_features(RBD_FEATURE_OBJECT_MAP)) {
     mock_image_ctx.object_map = &mock_object_map;
   }
 
@@ -242,12 +243,12 @@ TEST_F(TestMockOperationSnapshotRemoveRequest, RemoveChildParentError) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
   ASSERT_EQ(0, librbd::snap_create(ictx, "snap1"));
-  ASSERT_EQ(0, librbd::ictx_check(ictx));
+  ASSERT_EQ(0, ictx->state->refresh_if_required());
 
   MockImageCtx mock_image_ctx(*ictx);
 
   MockObjectMap mock_object_map;
-  if (mock_image_ctx.test_features(RBD_FEATURE_OBJECT_MAP)) {
+  if (ictx->test_features(RBD_FEATURE_OBJECT_MAP)) {
     mock_image_ctx.object_map = &mock_object_map;
   }
 
@@ -291,12 +292,12 @@ TEST_F(TestMockOperationSnapshotRemoveRequest, RemoveChildError) {
 
   librbd::NoOpProgressContext prog_ctx;
   ASSERT_EQ(0, librbd::flatten(ictx, prog_ctx));
-  ASSERT_EQ(0, librbd::ictx_check(ictx));
+  ASSERT_EQ(0, ictx->state->refresh_if_required());
 
   MockImageCtx mock_image_ctx(*ictx);
 
   MockObjectMap mock_object_map;
-  if (mock_image_ctx.test_features(RBD_FEATURE_OBJECT_MAP)) {
+  if (ictx->test_features(RBD_FEATURE_OBJECT_MAP)) {
     mock_image_ctx.object_map = &mock_object_map;
   }
 
@@ -321,17 +322,17 @@ TEST_F(TestMockOperationSnapshotRemoveRequest, RemoveSnapError) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
   ASSERT_EQ(0, librbd::snap_create(ictx, "snap1"));
-  ASSERT_EQ(0, librbd::ictx_check(ictx));
+  ASSERT_EQ(0, ictx->state->refresh_if_required());
 
   MockImageCtx mock_image_ctx(*ictx);
 
   MockExclusiveLock mock_exclusive_lock;
-  if (mock_image_ctx.test_features(RBD_FEATURE_EXCLUSIVE_LOCK)) {
+  if (ictx->test_features(RBD_FEATURE_EXCLUSIVE_LOCK)) {
     mock_image_ctx.exclusive_lock = &mock_exclusive_lock;
   }
 
   MockObjectMap mock_object_map;
-  if (mock_image_ctx.test_features(RBD_FEATURE_OBJECT_MAP)) {
+  if (ictx->test_features(RBD_FEATURE_OBJECT_MAP)) {
     mock_image_ctx.object_map = &mock_object_map;
   }
 

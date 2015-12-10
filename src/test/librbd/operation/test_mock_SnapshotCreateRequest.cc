@@ -111,12 +111,12 @@ TEST_F(TestMockOperationSnapshotCreateRequest, Success) {
   MockImageCtx mock_image_ctx(*ictx);
 
   MockExclusiveLock mock_exclusive_lock;
-  if (mock_image_ctx.test_features(RBD_FEATURE_EXCLUSIVE_LOCK)) {
+  if (ictx->test_features(RBD_FEATURE_EXCLUSIVE_LOCK)) {
     mock_image_ctx.exclusive_lock = &mock_exclusive_lock;
   }
 
   MockObjectMap mock_object_map;
-  if (mock_image_ctx.test_features(RBD_FEATURE_OBJECT_MAP)) {
+  if (ictx->test_features(RBD_FEATURE_OBJECT_MAP)) {
     mock_image_ctx.object_map = &mock_object_map;
   }
 
@@ -148,7 +148,7 @@ TEST_F(TestMockOperationSnapshotCreateRequest, AllocateSnapIdError) {
   MockImageCtx mock_image_ctx(*ictx);
 
   MockExclusiveLock mock_exclusive_lock;
-  if (mock_image_ctx.test_features(RBD_FEATURE_EXCLUSIVE_LOCK)) {
+  if (ictx->test_features(RBD_FEATURE_EXCLUSIVE_LOCK)) {
     mock_image_ctx.exclusive_lock = &mock_exclusive_lock;
   }
 
@@ -177,12 +177,12 @@ TEST_F(TestMockOperationSnapshotCreateRequest, CreateSnapStale) {
   MockImageCtx mock_image_ctx(*ictx);
 
   MockExclusiveLock mock_exclusive_lock;
-  if (mock_image_ctx.test_features(RBD_FEATURE_EXCLUSIVE_LOCK)) {
+  if (ictx->test_features(RBD_FEATURE_EXCLUSIVE_LOCK)) {
     mock_image_ctx.exclusive_lock = &mock_exclusive_lock;
   }
 
   MockObjectMap mock_object_map;
-  if (mock_image_ctx.test_features(RBD_FEATURE_OBJECT_MAP)) {
+  if (ictx->test_features(RBD_FEATURE_OBJECT_MAP)) {
     mock_image_ctx.object_map = &mock_object_map;
   }
 
@@ -213,7 +213,7 @@ TEST_F(TestMockOperationSnapshotCreateRequest, CreateSnapError) {
   MockImageCtx mock_image_ctx(*ictx);
 
   MockExclusiveLock mock_exclusive_lock;
-  if (mock_image_ctx.test_features(RBD_FEATURE_EXCLUSIVE_LOCK)) {
+  if (ictx->test_features(RBD_FEATURE_EXCLUSIVE_LOCK)) {
     mock_image_ctx.exclusive_lock = &mock_exclusive_lock;
   }
 
@@ -243,7 +243,7 @@ TEST_F(TestMockOperationSnapshotCreateRequest, ReleaseSnapIdError) {
   MockImageCtx mock_image_ctx(*ictx);
 
   MockExclusiveLock mock_exclusive_lock;
-  if (mock_image_ctx.test_features(RBD_FEATURE_EXCLUSIVE_LOCK)) {
+  if (ictx->test_features(RBD_FEATURE_EXCLUSIVE_LOCK)) {
     mock_image_ctx.exclusive_lock = &mock_exclusive_lock;
   }
 

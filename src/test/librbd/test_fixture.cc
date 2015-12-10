@@ -5,6 +5,7 @@
 #include "include/stringify.h"
 #include "librbd/AioImageRequestWQ.h"
 #include "librbd/ExclusiveLock.h"
+#include "librbd/ImageState.h"
 #include "librbd/ImageWatcher.h"
 #include "cls/lock/cls_lock_client.h"
 #include "cls/lock/cls_lock_types.h"
@@ -47,7 +48,7 @@ void TestFixture::TearDown() {
   unlock_image();
   for (std::set<librbd::ImageCtx *>::iterator iter = m_ictxs.begin();
        iter != m_ictxs.end(); ++iter) {
-    librbd::close_image(*iter);
+    (*iter)->state->close();
   }
 
   m_ioctx.close();
@@ -57,12 +58,14 @@ int TestFixture::open_image(const std::string &image_name,
 			    librbd::ImageCtx **ictx) {
   *ictx = new librbd::ImageCtx(image_name.c_str(), "", NULL, m_ioctx, false);
   m_ictxs.insert(*ictx);
-  return librbd::open_image(*ictx);
+
+  return (*ictx)->state->open();
 }
 
 void TestFixture::close_image(librbd::ImageCtx *ictx) {
   m_ictxs.erase(ictx);
-  librbd::close_image(ictx);
+
+  ictx->state->close();
 }
 
 int TestFixture::lock_image(librbd::ImageCtx &ictx, ClsLockType lock_type,
