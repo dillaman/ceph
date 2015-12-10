@@ -1516,7 +1516,6 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
       return r;
     }
 
-    C_SaferCond p_refresh_ctx;
     parent_spec pspec(p_ioctx.get_id(), p_imctx->id,
 				  p_imctx->snap_id);
 
@@ -1574,9 +1573,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
       goto err_close_child;
     }
 
-    p_imctx->state->refresh(&p_refresh_ctx);
-    r = p_refresh_ctx.wait();
-
+    r = p_imctx->state->refresh();
     if (r == 0) {
       p_imctx->snap_lock.get_read();
       r = p_imctx->is_snap_protected(p_imctx->snap_id, &snap_protected);
@@ -1603,6 +1600,7 @@ int invoke_async_request(ImageCtx *ictx, const std::string& request_type,
     ldout(cct, 2) << "done." << dendl;
     r = c_imctx->state->close();
     partial_r = p_imctx->state->close();
+
     if (r == 0 && partial_r < 0) {
       r = partial_r;
     }

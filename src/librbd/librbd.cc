@@ -1569,10 +1569,10 @@ extern "C" int rbd_open_read_only(rados_ioctx_t p, const char *name,
 
 extern "C" int rbd_close(rbd_image_t image)
 {
-  librbd::ImageCtx *ctx = (librbd::ImageCtx *)image;
-  tracepoint(librbd, close_image_enter, ctx, ctx->name.c_str(), ctx->id.c_str());
+  librbd::ImageCtx *ictx = (librbd::ImageCtx *)image;
+  tracepoint(librbd, close_image_enter, ictx, ictx->name.c_str(), ictx->id.c_str());
 
-  int r = ctx->state->close();
+  int r = ictx->state->close();
 
   tracepoint(librbd, close_image_exit, r);
   return r;

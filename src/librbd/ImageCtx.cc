@@ -186,7 +186,11 @@ struct C_InvalidateCache : public Context {
   }
 
   ImageCtx::~ImageCtx() {
+    assert(image_watcher == NULL);
+    assert(exclusive_lock == NULL);
+    assert(object_map == NULL);
     assert(journal == NULL);
+
     if (perfcounter) {
       perf_stop();
     }
@@ -207,6 +211,9 @@ struct C_InvalidateCache : public Context {
       copyup_finisher = NULL;
     }
     delete[] format_string;
+
+    op_work_queue->drain();
+    aio_work_queue->drain();
 
     delete op_work_queue;
     delete aio_work_queue;
@@ -814,6 +821,9 @@ struct C_InvalidateCache : public Context {
   }
 
   void ImageCtx::flush(Context *on_safe) {
+    // ensure no locks are held when flush is complete
+    on_safe = util::create_async_context_callback(*this, on_safe);
+
     assert(owner_lock.is_locked());
     if (object_cacher != NULL) {
       // flush cache after completing all in-flight AIO ops
