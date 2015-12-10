@@ -411,6 +411,10 @@ public:
     }
 
     virtual void process(T *item) = 0;
+    void process_finish() {
+      Mutex::Locker locker(m_pool->_lock);
+      _void_process_finish(nullptr);
+    }
 
     T *front() {
       assert(m_pool->_lock.is_locked());
