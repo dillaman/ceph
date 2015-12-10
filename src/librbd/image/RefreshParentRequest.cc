@@ -19,6 +19,7 @@
 namespace librbd {
 namespace image {
 
+using util::create_async_context_callback;
 using util::create_context_callback;
 
 template <typename I>
@@ -61,6 +62,7 @@ void RefreshParentRequest<I>::send() {
   if (is_open_required(m_child_image_ctx, m_parent_md)) {
     send_open_parent();
   } else {
+    // parent will be closed (if necessary) during finalize
     send_complete(0);
   }
 }
@@ -69,14 +71,14 @@ template <typename I>
 void RefreshParentRequest<I>::apply() {
   assert(m_child_image_ctx.snap_lock.is_wlocked());
   assert(m_child_image_ctx.parent_lock.is_wlocked());
-
-  if (m_parent_image_ctx != nullptr) {
-    std::swap(m_child_image_ctx.parent, m_parent_image_ctx);
-  }
+  std::swap(m_child_image_ctx.parent, m_parent_image_ctx);
 }
 
 template <typename I>
 void RefreshParentRequest<I>::finalize(Context *on_finish) {
+  CephContext *cct = m_child_image_ctx.cct;
+  ldout(cct, 10) << this << " " << __func__ << dendl;
+
   m_on_finish = on_finish;
   if (m_parent_image_ctx != nullptr) {
     send_close_parent();
@@ -112,7 +114,7 @@ void RefreshParentRequest<I>::send_open_parent() {
 
   using klass = RefreshParentRequest<I>;
   Context *ctx = create_context_callback<
-    klass, &klass::handle_open_parent>(this);
+    klass, &klass::handle_open_parent, false>(this);
   OpenRequest<I> *req = OpenRequest<I>::create(m_parent_image_ctx, ctx);
   req->send();
 }
@@ -122,8 +124,10 @@ Context *RefreshParentRequest<I>::handle_open_parent(int *result) {
   CephContext *cct = m_child_image_ctx.cct;
   ldout(cct, 10) << this << " " << __func__ << " r=" << *result << dendl;
 
+  save_result(result);
   if (*result < 0) {
-    m_error_result = *result;
+    lderr(cct) << "failed to open parent image: " << cpp_strerror(*result)
+               << dendl;
     send_close_parent();
     return nullptr;
   }
@@ -165,15 +169,14 @@ Context *RefreshParentRequest<I>::handle_set_parent_snap(int *result) {
   CephContext *cct = m_child_image_ctx.cct;
   ldout(cct, 10) << this << " " << __func__ << " r=" << *result << dendl;
 
+  save_result(result);
   if (*result < 0) {
     lderr(cct) << "failed to set parent snapshot: " << cpp_strerror(*result)
                << dendl;
-    m_error_result = *result;
     send_close_parent();
     return nullptr;
   }
 
-  // request will not be deleted
   return m_on_finish;
 }
 
@@ -185,8 +188,9 @@ void RefreshParentRequest<I>::send_close_parent() {
   ldout(cct, 10) << this << " " << __func__ << dendl;
 
   using klass = RefreshParentRequest<I>;
-  Context *ctx = create_context_callback<
-    klass, &klass::handle_close_parent>(this);
+  Context *ctx = create_async_context_callback(
+    m_child_image_ctx, create_context_callback<
+      klass, &klass::handle_close_parent, false>(this));
   CloseRequest<I> *req = CloseRequest<I>::create(m_parent_image_ctx, ctx);
   req->send();
 }
@@ -196,12 +200,18 @@ Context *RefreshParentRequest<I>::handle_close_parent(int *result) {
   CephContext *cct = m_child_image_ctx.cct;
   ldout(cct, 10) << this << " " << __func__ << " r=" << *result << dendl;
 
+  delete m_parent_image_ctx;
   if (*result < 0) {
     lderr(cct) << "failed to close parent image: " << cpp_strerror(*result)
                << dendl;
   }
+
   if (m_error_result < 0) {
+    // propagate errors from opening the image
     *result = m_error_result;
+  } else {
+    // ignore errors from closing the image
+    *result = 0;
   }
 
   return m_on_finish;
@@ -213,7 +223,6 @@ void RefreshParentRequest<I>::send_complete(int r) {
   ldout(cct, 10) << this << " " << __func__ << dendl;
 
   m_on_finish->complete(r);
-  delete this;
 }
 
 } // namespace image

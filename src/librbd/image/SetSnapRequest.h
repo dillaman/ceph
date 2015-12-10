@@ -40,39 +40,39 @@ private:
    * <start>
    *    |
    *    | (set snap)
-   *    |-----------> BLOCK_WRITES ---> SHUTDOWN_EXCLUSIVE_LOCK
-   *    |                 .                 |
-   *    |                 .                 |
-   *    |                 v                 |
-   *    |         (skip shutdown if         |
-   *    |          lock disabled)           |
-   *    |                                   |
-   *    |                                   |
-   *    |       <BLOCK or SHUTDOWN>         |              <BLOCK or SHUTDOWN>
-   *    |             .                     |                    .
-   *    | (object map .                     v                    . (no parent)
-   *    |  disabled / .               . . REFRESH_PARENT         .
-   *    |  no parent) .               .     |                    .
-   *    |             .  (object map  .     v                    .
-   *    |             .     disabled) .   REFRESH_OBJECT_MAP < . .
-   *    |             .               .     |
-   *    |             .               .     v
-   *    |             . . . . . . . . . > <finish> <  . . . . . .
-   *    |                                   ^  ^                .
-   *    | (unset snap /                     |  |                .
-   *    |  no exclusive lock /              |  |                .
-   *    |  no parent)                       |  |                .
-   *    |-----------------------------------/  |                . (object map
-   *    |                                      |                .  disabled)
-   *    |                                 REFRESH_OBJECT_MAP    .
-   *    |                                    ^ ^                .
-   *    | (unset snap /                      | |                .
-   *    |  no exclusive lock)                | |                .
-   *    |------------------------------------/ |                .
-   *    |                                      |                .
-   *    | (unset snap /                        |                .
-   *    |  exclusive lock)                     |                .
-   *    \-----------------------------> INIT_EXCLUSIVE_LOCK . . .
+   *    |-----------> BLOCK_WRITES
+   *    |                 |
+   *    |                 v
+   *    |             SHUTDOWN_EXCLUSIVE_LOCK (skip if lock inactive
+   *    |                 |                    or disabled)
+   *    |                 v
+   *    |             REFRESH_PARENT (skip if no parent
+   *    |                 |           or refresh not needed)
+   *    |                 v
+   *    |             REFRESH_OBJECT_MAP (skip if map disabled)
+   *    |                 |
+   *    |                 v
+   *    |              <apply>
+   *    |                 |
+   *    |                 v
+   *    |             FINALIZE_REFRESH_PARENT (skip if no parent
+   *    |                 |                    or refresh not needed)
+   *    |                 v
+   *    |             <finish>
+   *    |
+   *    \-----------> INIT_EXCLUSIVE_LOCK (skip if active or
+   *                      |                disabled)
+   *                      v
+   *                  REFRESH_PARENT (skip if no parent
+   *                      |           or refresh not needed)
+   *                      v
+   *                   <apply>
+   *                      |
+   *                      v
+   *                  FINALIZE_REFRESH_PARENT (skip if no parent
+   *                      |                    or refresh not needed)
+   *                      v
+   *                  <finish>
    *
    * @endverbatim
    */
@@ -91,11 +91,11 @@ private:
 
   bool m_writes_blocked;
 
-  void send_init_exclusive_lock();
-  Context *handle_init_exclusive_lock(int *result);
-
   void send_block_writes();
   Context *handle_block_writes(int *result);
+
+  void send_init_exclusive_lock();
+  Context *handle_init_exclusive_lock(int *result);
 
   Context *send_shut_down_exclusive_lock(int *result);
   Context *handle_shut_down_exclusive_lock(int *result);
@@ -110,6 +110,7 @@ private:
   Context *handle_finalize_refresh_parent(int *result);
 
   int apply();
+  void send_complete();
 };
 
 } // namespace image

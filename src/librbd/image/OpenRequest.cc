@@ -137,6 +137,7 @@ void OpenRequest<I>::send_v2_get_id() {
     m_out_bl.clear();
     m_image_ctx->md_ctx.aio_operate(util::id_obj_name(m_image_ctx->name),
                                     comp, &op, &m_out_bl);
+    comp->release();
   } else {
     send_v2_get_immutable_metadata();
   }
@@ -179,7 +180,6 @@ void OpenRequest<I>::send_v2_get_immutable_metadata() {
   m_image_ctx->md_ctx.aio_operate(m_image_ctx->header_oid, comp, &op,
                                   &m_out_bl);
   comp->release();
-
 }
 
 template <typename I>
@@ -344,6 +344,8 @@ void OpenRequest<I>::send_close_image(int error_result) {
   CephContext *cct = m_image_ctx->cct;
   ldout(cct, 10) << this << " " << __func__ << dendl;
 
+  m_error_result = error_result;
+
   using klass = OpenRequest<I>;
   Context *ctx = create_context_callback<klass, &klass::handle_close_image>(
     this);
@@ -356,6 +358,7 @@ Context *OpenRequest<I>::handle_close_image(int *result) {
   CephContext *cct = m_image_ctx->cct;
   ldout(cct, 10) << __func__ << ": r=" << *result << dendl;
 
+  delete m_image_ctx;
   if (*result < 0) {
     lderr(cct) << "failed to close image: " << cpp_strerror(*result) << dendl;
   }

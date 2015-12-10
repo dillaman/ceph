@@ -30,6 +30,7 @@ SetSnapRequest<I>::SetSnapRequest(I &image_ctx, const std::string &snap_name,
 
 template <typename I>
 SetSnapRequest<I>::~SetSnapRequest() {
+  delete m_refresh_parent;
   delete m_object_map;
   delete m_exclusive_lock;
   if (m_writes_blocked) {
@@ -48,13 +49,21 @@ void SetSnapRequest<I>::send() {
 
 template <typename I>
 void SetSnapRequest<I>::send_init_exclusive_lock() {
+  {
+    RWLock::RLocker snap_locker(m_image_ctx.snap_lock);
+    if (m_image_ctx.exclusive_lock != nullptr) {
+      assert(m_image_ctx.snap_id == CEPH_NOSNAP);
+      send_complete();
+      return;
+    }
+  }
+
   if (!m_image_ctx.test_features(RBD_FEATURE_EXCLUSIVE_LOCK)) {
     int r = 0;
-    Context *ctx = send_refresh_parent(&r);
-    if (ctx != nullptr) {
-      m_on_finish->complete(r);
+    if (send_refresh_parent(&r) != nullptr) {
+      send_complete();
+      return;
     }
-    return;
   }
 
   CephContext *cct = m_image_ctx.cct;
@@ -65,6 +74,8 @@ void SetSnapRequest<I>::send_init_exclusive_lock() {
   using klass = SetSnapRequest<I>;
   Context *ctx = create_context_callback<
     klass, &klass::handle_init_exclusive_lock>(this);
+
+  RWLock::RLocker owner_locker(m_image_ctx.owner_lock);
   m_exclusive_lock->init(ctx);
 }
 
@@ -91,6 +102,8 @@ void SetSnapRequest<I>::send_block_writes() {
   using klass = SetSnapRequest<I>;
   Context *ctx = create_context_callback<
     klass, &klass::handle_block_writes>(this);
+
+  RWLock::RLocker owner_locker(m_image_ctx.owner_lock);
   m_image_ctx.aio_work_queue->block_writes(ctx);
 }
 
@@ -315,6 +328,12 @@ int SetSnapRequest<I>::apply() {
   std::swap(m_exclusive_lock, m_image_ctx.exclusive_lock);
   std::swap(m_object_map, m_image_ctx.object_map);
   return 0;
+}
+
+template <typename I>
+void SetSnapRequest<I>::send_complete() {
+  m_on_finish->complete(0);
+  delete this;
 }
 
 } // namespace image

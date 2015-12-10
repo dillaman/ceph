@@ -9,6 +9,7 @@
 #include "include/rbd_types.h"
 #include "common/snap_types.h"
 #include "cls/lock/cls_lock_types.h"
+#include "librbd/ImageCtx.h"
 #include "librbd/parent_types.h"
 #include <string>
 #include <vector>
@@ -17,8 +18,10 @@ class Context;
 
 namespace librbd {
 
+template <typename> class ExclusiveLock;
 class ImageCtx;
 class Journal;
+class ObjectMap;
 
 namespace image {
 
@@ -30,6 +33,8 @@ public:
   static  RefreshRequest *create(ImageCtxT &image_ctx, Context *on_finish) {
     return new RefreshRequest(image_ctx, on_finish);
   }
+
+  ~RefreshRequest();
 
   void send();
 
@@ -44,35 +49,48 @@ private:
    *    |                                                     |
    *    | (v2)                                                v
    *    \-----> V2_GET_MUTABLE_METADATA                    <apply>
-   *                |                                       |   .
-   *                v                                       |   .
-   *            V2_GET_FLAGS                                |   .
-   *                |                                       |   .
-   *                v                                       |   .
-   *            V2_GET_SNAPSHOTS . . .                      |   .
-   *                |                .                      |   .
-   *                v                .                      |   .
-   *            V2_REFRESH_PARENT    . (no parent /         |   .
-   *                |                .  not needed)         |   .
-   *                v                .                      |   .
-   *     . . . . <apply> < . . . . . .                      |   .
-   *     .        . . |                                     |   .
-   *     .        . . |                                     |   .
-   *     .        . . \---> V2_SHUT_DOWN_EXCLUSIVE_LOCK     |   .
-   *     .        . .                          |            |   .
-   *     .        . .                          |            |   .
-   *     .        . . . . > V2_CLOSE_JOURNAL   |            |   .
-   *     .        .             |              |            |   .
-   *     .        v             v              |            |   .
-   *     .      V2_FINALIZE_REFRESH_PARENT <---/            |   .
-   *     .          .        |                              |   .
-   *     .          .        \-------> FLUSH < -------------/   .
-   *     .          .                    |                      .
-   *     .          . (no new snap)      v        (no new snap) .
-   *     .          . . . . . . . . > <finish> <  . . . . . . . .
-   *     .                               ^
-   *     .  (no parent / not needed)     .
-   *     . . . . . . . . . . . . . . . . .
+   *                |                                         |
+   *                v                                         |
+   *            V2_GET_FLAGS                                  |
+   *                |                                         |
+   *                v                                         |
+   *            V2_GET_SNAPSHOTS                              |
+   *                |                                         |
+   *                v                                         |
+   *            V2_REFRESH_PARENT (skip if no parent or       |
+   *                |              refresh not needed)        |
+   *                v                                         |
+   *            V2_INIT_EXCLUSIVE_LOCK (skip if lock          |
+   *                |                   active or disabled)   |
+   *                v                                         |
+   *            V2_INIT_OBJECT_MAP (skip if map active or     |
+   *                |               disabled)                 |
+   *                v                                         |
+   *            V2_INIT_JOURNAL (skip if journal              |
+   *                |            active or disabled)          |
+   *                v                                         |
+   *             <apply>                                      |
+   *                |                                         |
+   *                v                                         |
+   *            V2_SHUT_DOWN_EXCLUSIVE_LOCK (skip if lock     |
+   *                |                      active or enabled) |
+   *                v                                         |
+   *            V2_CLOSE_OBJECT_MAP (skip if map inactive     |
+   *                |                or enabled)              |
+   *                v                                         |
+   *            V2_CLOSE_JOURNAL (skip if journal inactive    |
+   *                |             or enabled)                 |
+   *                v                                         |
+   *            V2_FINALIZE_REFRESH_PARENT (skip if refresh   |
+   *                |                       not needed)       |
+   *                |                                         |
+   *                \-------------------\/--------------------/
+   *                                    |
+   *                                    v
+   *                                  FLUSH (skip if no new
+   *                                    |    snapshots)
+   *                                    v
+   *                                 <finish>
    *
    * @endverbatim
    */
@@ -81,6 +99,9 @@ private:
   Context *m_on_finish;
 
   bool m_flush_aio;
+  decltype(m_image_ctx.exclusive_lock) m_exclusive_lock;
+  ObjectMap *m_object_map;
+  Journal *m_journal;
   RefreshParentRequest<ImageCtxT> *m_refresh_parent;
 
   bufferlist m_out_bl;
@@ -128,14 +149,26 @@ private:
   Context *send_v2_refresh_parent();
   Context *handle_v2_refresh_parent(int *result);
 
-  Context *send_v2_finalize_refresh_parent();
-  Context *handle_v2_finalize_refresh_parent(int *result);
+  Context *send_v2_init_exclusive_lock();
+  Context *handle_v2_init_exclusive_lock(int *result);
+
+  Context *send_v2_init_object_map();
+  Context *handle_v2_init_object_map(int *result);
+
+  Context *send_v2_init_journal();
+  Context *handle_v2_init_journal(int *result);
 
   Context *send_v2_shut_down_exclusive_lock();
   Context *handle_v2_shut_down_exclusive_lock(int *result);
 
+  Context *send_v2_close_object_map();
+  Context *handle_v2_close_object_map(int *result);
+
   Context *send_v2_close_journal();
   Context *handle_v2_close_journal(int *result);
+
+  Context *send_v2_finalize_refresh_parent();
+  Context *handle_v2_finalize_refresh_parent(int *result);
 
   Context *send_flush_aio();
   Context *handle_flush_aio(int *result);

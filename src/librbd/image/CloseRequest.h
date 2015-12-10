@@ -5,6 +5,7 @@
 #define CEPH_LIBRBD_IMAGE_CLOSE_REQUEST_H
 
 #include "include/int_types.h"
+#include "librbd/ImageCtx.h"
 
 class Context;
 
@@ -30,16 +31,19 @@ private:
    * <start>
    *    |
    *    v
-   * BLOCK_WRITES . . . . . . . . .
-   *    |                         .
-   *    v                         .
-   * SHUT_DOWN_EXCLUSIVE_LOCK     . (exclusive lock
-   *    |                         .  disabled)
-   *    v                         .
-   * FLUSH_READHEAD < . . . . . . .
+   * UNREGISTER_IMAGE_WATCHER
+   *    |                             (exclusive lock enabled /
+   *    v                              snapshot active)
+   * SHUT_DOWN_AIO_WORK_QUEUE . . . . . . . . . . . . . . . .
+   *    |                         .                         .
+   *    v                         .                         v
+   * SHUT_DOWN_EXCLUSIVE_LOCK     . (exclusive lock   CLOSE_OBJECT_MAP
+   *    |                         .  disabled)              .
+   *    v                         v                         .
+   * FLUSH  < . . . . . . . . . . . . . . . . . . . . . . . .
    *    |
    *    v
-   * FLUSH
+   * FLUSH_READAHEAD
    *    |
    *    v
    * SHUTDOWN_CACHE
@@ -66,17 +70,25 @@ private:
 
   int m_error_result;
 
-  void send_block_writes();
-  void handle_block_writes(int r);
+  decltype(m_image_ctx->exclusive_lock) m_exclusive_lock;
+
+  void send_unregister_image_watcher();
+  void handle_unregister_image_watcher(int r);
+
+  void send_shut_down_aio_queue();
+  void handle_shut_down_aio_queue(int r);
 
   void send_shut_down_exclusive_lock();
   void handle_shut_down_exclusive_lock(int r);
 
-  void send_flush_readahead();
-  void handle_flush_readahead(int r);
+  void send_close_object_map();
+  void handle_close_object_map(int r);
 
   void send_flush();
   void handle_flush(int r);
+
+  void send_flush_readahead();
+  void handle_flush_readahead(int r);
 
   void send_shut_down_cache();
   void handle_shut_down_cache(int r);
@@ -91,6 +103,12 @@ private:
   void handle_close_parent(int r);
 
   void finish();
+
+  void save_result(int result) {
+    if (m_error_result == 0 && result < 0) {
+      m_error_result = result;
+    }
+  }
 };
 
 } // namespace image

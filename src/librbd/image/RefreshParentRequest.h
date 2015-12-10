@@ -83,6 +83,12 @@ private:
 
   void send_complete(int r);
 
+  void save_result(int *result) {
+    if (m_error_result == 0 && *result < 0) {
+      m_error_result = *result;
+    }
+  }
+
 };
 
 } // namespace image
