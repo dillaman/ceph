@@ -32,8 +32,6 @@ CloseRequest<I>::CloseRequest(I *image_ctx, Context *on_finish)
 
 template <typename I>
 void CloseRequest<I>::send() {
-  m_image_ctx->readahead.set_max_readahead_size(0);
-
   // TODO
   send_shut_down_aio_queue();
   //send_unregister_image_watcher();
