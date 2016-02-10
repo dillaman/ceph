@@ -173,10 +173,20 @@ MockJournaler *MockJournaler::s_instance = nullptr;
 } // namespace journal
 
 namespace librbd {
+
+namespace {
+
+struct MockJournalImageCtx : public MockImageCtx {
+  MockJournalImageCtx(librbd::ImageCtx& image_ctx) : MockImageCtx(image_ctx) {
+  }
+};
+
+} // anonymous namespace
+
 namespace journal {
 
 template <>
-struct TypeTraits<MockImageCtx> {
+struct TypeTraits<MockJournalImageCtx> {
   typedef ::journal::MockJournalerProxy Journaler;
   typedef ::journal::MockFutureProxy  Future;
   typedef ::journal::MockReplayEntryProxy ReplayEntry;
@@ -199,9 +209,9 @@ struct MockReplay {
 };
 
 template <>
-class Replay<MockImageCtx> {
+class Replay<MockJournalImageCtx> {
 public:
-  static Replay *create(MockImageCtx &image_ctx) {
+  static Replay *create(MockJournalImageCtx &image_ctx) {
     return new Replay();
   }
 
@@ -226,7 +236,7 @@ MockReplay *MockReplay::s_instance = nullptr;
 
 // template definitions
 #include "librbd/Journal.cc"
-template class librbd::Journal<librbd::MockImageCtx>;
+template class librbd::Journal<librbd::MockJournalImageCtx>;
 
 using ::testing::_;
 using ::testing::DoAll;
@@ -250,7 +260,7 @@ namespace librbd {
 class TestMockJournal : public TestMockFixture {
 public:
   typedef journal::MockReplay MockJournalReplay;
-  typedef Journal<MockImageCtx> MockJournal;
+  typedef Journal<MockJournalImageCtx> MockJournal;
 
   typedef std::function<void(::journal::ReplayHandler*)> ReplayAction;
   typedef std::list<ReplayAction> ReplayActions;
@@ -291,7 +301,7 @@ public:
 
   }
 
-  void expect_start_replay(MockImageCtx &mock_image_ctx,
+  void expect_start_replay(MockJournalImageCtx &mock_image_ctx,
                            ::journal::MockJournaler &mock_journaler,
                            const ReplayActions &actions) {
     EXPECT_CALL(mock_journaler, start_replay(_))
@@ -303,7 +313,7 @@ public:
     EXPECT_CALL(mock_journaler, stop_replay());
   }
 
-  void expect_flush_replay(MockImageCtx &mock_image_ctx,
+  void expect_flush_replay(MockJournalImageCtx &mock_image_ctx,
                            MockJournalReplay &mock_journal_replay, int r) {
     EXPECT_CALL(mock_journal_replay, flush(_))
                   .WillOnce(Invoke([this, &mock_image_ctx, r](Context *on_flush) {
@@ -378,7 +388,7 @@ public:
     return ctx.wait();
   }
 
-  uint64_t when_append_io_event(MockImageCtx &mock_image_ctx,
+  uint64_t when_append_io_event(MockJournalImageCtx &mock_image_ctx,
                                 MockJournal &mock_journal,
                                 AioCompletion *aio_comp = nullptr) {
     RWLock::RLocker owner_locker(mock_image_ctx.owner_lock);
@@ -397,7 +407,8 @@ public:
     m_cond.Signal();
   }
 
-  void commit_replay(MockImageCtx &mock_image_ctx, Context *on_flush, int r) {
+  void commit_replay(MockJournalImageCtx &mock_image_ctx, Context *on_flush,
+                     int r) {
     Contexts commit_contexts;
     std::swap(commit_contexts, m_commit_contexts);
 
@@ -407,7 +418,8 @@ public:
     mock_image_ctx.image_ctx->op_work_queue->queue(on_flush, 0);
   }
 
-  void open_journal(MockImageCtx &mock_image_ctx, MockJournal &mock_journal,
+  void open_journal(MockJournalImageCtx &mock_image_ctx,
+                    MockJournal &mock_journal,
                     ::journal::MockJournaler &mock_journaler) {
     expect_op_work_queue(mock_image_ctx);
 
@@ -448,7 +460,7 @@ TEST_F(TestMockJournal, StateTransitions) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
-  MockImageCtx mock_image_ctx(*ictx);
+  MockJournalImageCtx mock_image_ctx(*ictx);
   MockJournal mock_journal(mock_image_ctx);
   expect_op_work_queue(mock_image_ctx);
 
@@ -493,7 +505,7 @@ TEST_F(TestMockJournal, InitError) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
-  MockImageCtx mock_image_ctx(*ictx);
+  MockJournalImageCtx mock_image_ctx(*ictx);
   MockJournal mock_journal(mock_image_ctx);
   expect_op_work_queue(mock_image_ctx);
 
@@ -511,7 +523,7 @@ TEST_F(TestMockJournal, ReplayCompleteError) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
-  MockImageCtx mock_image_ctx(*ictx);
+  MockJournalImageCtx mock_image_ctx(*ictx);
   MockJournal mock_journal(mock_image_ctx);
   expect_op_work_queue(mock_image_ctx);
 
@@ -552,7 +564,7 @@ TEST_F(TestMockJournal, FlushReplayError) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
-  MockImageCtx mock_image_ctx(*ictx);
+  MockJournalImageCtx mock_image_ctx(*ictx);
   MockJournal mock_journal(mock_image_ctx);
   expect_op_work_queue(mock_image_ctx);
 
@@ -598,7 +610,7 @@ TEST_F(TestMockJournal, StopError) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
-  MockImageCtx mock_image_ctx(*ictx);
+  MockJournalImageCtx mock_image_ctx(*ictx);
   MockJournal mock_journal(mock_image_ctx);
   expect_op_work_queue(mock_image_ctx);
 
@@ -628,7 +640,7 @@ TEST_F(TestMockJournal, ReplayOnDiskPreFlushError) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
-  MockImageCtx mock_image_ctx(*ictx);
+  MockJournalImageCtx mock_image_ctx(*ictx);
   MockJournal mock_journal(mock_image_ctx);
   expect_op_work_queue(mock_image_ctx);
 
@@ -701,7 +713,7 @@ TEST_F(TestMockJournal, ReplayOnDiskPostFlushError) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
-  MockImageCtx mock_image_ctx(*ictx);
+  MockJournalImageCtx mock_image_ctx(*ictx);
   MockJournal mock_journal(mock_image_ctx);
   expect_op_work_queue(mock_image_ctx);
 
@@ -775,7 +787,7 @@ TEST_F(TestMockJournal, EventAndIOCommitOrder) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
-  MockImageCtx mock_image_ctx(*ictx);
+  MockJournalImageCtx mock_image_ctx(*ictx);
   MockJournal mock_journal(mock_image_ctx);
   ::journal::MockJournaler mock_journaler;
   open_journal(mock_image_ctx, mock_journal, mock_journaler);
@@ -815,7 +827,7 @@ TEST_F(TestMockJournal, EventCommitError) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
-  MockImageCtx mock_image_ctx(*ictx);
+  MockJournalImageCtx mock_image_ctx(*ictx);
   MockJournal mock_journal(mock_image_ctx);
   ::journal::MockJournaler mock_journaler;
   open_journal(mock_image_ctx, mock_journal, mock_journaler);
@@ -852,7 +864,7 @@ TEST_F(TestMockJournal, EventCommitErrorWithPendingWriteback) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
-  MockImageCtx mock_image_ctx(*ictx);
+  MockJournalImageCtx mock_image_ctx(*ictx);
   MockJournal mock_journal(mock_image_ctx);
   ::journal::MockJournaler mock_journaler;
   open_journal(mock_image_ctx, mock_journal, mock_journaler);
@@ -890,7 +902,7 @@ TEST_F(TestMockJournal, IOCommitError) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
-  MockImageCtx mock_image_ctx(*ictx);
+  MockJournalImageCtx mock_image_ctx(*ictx);
   MockJournal mock_journal(mock_image_ctx);
   ::journal::MockJournaler mock_journaler;
   open_journal(mock_image_ctx, mock_journal, mock_journaler);

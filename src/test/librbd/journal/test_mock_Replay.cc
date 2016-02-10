@@ -13,27 +13,36 @@
 
 namespace librbd {
 
+namespace {
+
+struct MockReplayImageCtx : public MockImageCtx {
+  MockReplayImageCtx(ImageCtx &image_ctx) : MockImageCtx(image_ctx) {
+  }
+};
+
+} // anonymous namespace
+
 template <>
-struct AioImageRequest<MockImageCtx> {
+struct AioImageRequest<MockReplayImageCtx> {
   static AioImageRequest *s_instance;
 
   MOCK_METHOD5(aio_write, void(AioCompletion *c, uint64_t off, size_t len,
                                const char *buf, int op_flags));
-  static void aio_write(MockImageCtx *ictx, AioCompletion *c, uint64_t off,
+  static void aio_write(MockReplayImageCtx *ictx, AioCompletion *c, uint64_t off,
                         size_t len, const char *buf, int op_flags) {
     assert(s_instance != nullptr);
     s_instance->aio_write(c, off, len, buf, op_flags);
   }
 
   MOCK_METHOD3(aio_discard, void(AioCompletion *c, uint64_t off, uint64_t len));
-  static void aio_discard(MockImageCtx *ictx, AioCompletion *c, uint64_t off,
+  static void aio_discard(MockReplayImageCtx *ictx, AioCompletion *c, uint64_t off,
                           uint64_t len) {
     assert(s_instance != nullptr);
     s_instance->aio_discard(c, off, len);
   }
 
   MOCK_METHOD1(aio_flush, void(AioCompletion *c));
-  static void aio_flush(MockImageCtx *ictx, AioCompletion *c) {
+  static void aio_flush(MockReplayImageCtx *ictx, AioCompletion *c) {
     assert(s_instance != nullptr);
     s_instance->aio_flush(c);
   }
@@ -43,13 +52,13 @@ struct AioImageRequest<MockImageCtx> {
   }
 };
 
-AioImageRequest<MockImageCtx> *AioImageRequest<MockImageCtx>::s_instance = nullptr;
+AioImageRequest<MockReplayImageCtx> *AioImageRequest<MockReplayImageCtx>::s_instance = nullptr;
 
 }
 
 // template definitions
 #include "librbd/journal/Replay.cc"
-template class librbd::journal::Replay<librbd::MockImageCtx>;
+template class librbd::journal::Replay<librbd::MockReplayImageCtx>;
 
 using ::testing::_;
 using ::testing::DoAll;
@@ -76,8 +85,8 @@ namespace journal {
 
 class TestMockJournalReplay : public TestMockFixture {
 public:
-  typedef AioImageRequest<MockImageCtx> MockAioImageRequest;
-  typedef Replay<MockImageCtx> MockJournalReplay;
+  typedef AioImageRequest<MockReplayImageCtx> MockAioImageRequest;
+  typedef Replay<MockReplayImageCtx> MockJournalReplay;
 
   void expect_aio_discard(MockAioImageRequest &mock_aio_image_request,
                           AioCompletion **aio_comp, uint64_t off,
@@ -92,7 +101,7 @@ public:
                   .WillOnce(SaveArg<0>(aio_comp));
   }
 
-  void expect_aio_flush(MockImageCtx &mock_image_ctx,
+  void expect_aio_flush(MockReplayImageCtx &mock_image_ctx,
                         MockAioImageRequest &mock_aio_image_request, int r) {
     EXPECT_CALL(mock_aio_image_request, aio_flush(_))
                   .WillOnce(CompleteAioCompletion(r, mock_image_ctx.image_ctx));
@@ -106,24 +115,24 @@ public:
                   .WillOnce(SaveArg<0>(aio_comp));
   }
 
-  void expect_flatten(MockImageCtx &mock_image_ctx, Context **on_finish) {
+  void expect_flatten(MockReplayImageCtx &mock_image_ctx, Context **on_finish) {
     EXPECT_CALL(*mock_image_ctx.operations, flatten(_, _))
                   .WillOnce(SaveArg<1>(on_finish));
   }
 
-  void expect_rename(MockImageCtx &mock_image_ctx, Context **on_finish,
+  void expect_rename(MockReplayImageCtx &mock_image_ctx, Context **on_finish,
                      const char *image_name) {
     EXPECT_CALL(*mock_image_ctx.operations, rename(CStrEq(image_name), _))
                   .WillOnce(SaveArg<1>(on_finish));
   }
 
-  void expect_resize(MockImageCtx &mock_image_ctx, Context **on_finish,
+  void expect_resize(MockReplayImageCtx &mock_image_ctx, Context **on_finish,
                      uint64_t size, uint64_t op_tid) {
     EXPECT_CALL(*mock_image_ctx.operations, resize(size, _, _, op_tid))
                   .WillOnce(SaveArg<2>(on_finish));
   }
 
-  void expect_snap_create(MockImageCtx &mock_image_ctx,
+  void expect_snap_create(MockReplayImageCtx &mock_image_ctx,
                           Context **on_finish, const char *snap_name,
                           uint64_t op_tid) {
     EXPECT_CALL(*mock_image_ctx.operations, snap_create(CStrEq(snap_name), _,
@@ -131,32 +140,32 @@ public:
                   .WillOnce(SaveArg<1>(on_finish));
   }
 
-  void expect_snap_remove(MockImageCtx &mock_image_ctx,
+  void expect_snap_remove(MockReplayImageCtx &mock_image_ctx,
                           Context **on_finish, const char *snap_name) {
     EXPECT_CALL(*mock_image_ctx.operations, snap_remove(CStrEq(snap_name), _))
                   .WillOnce(SaveArg<1>(on_finish));
   }
 
-  void expect_snap_rename(MockImageCtx &mock_image_ctx,
+  void expect_snap_rename(MockReplayImageCtx &mock_image_ctx,
                           Context **on_finish, uint64_t snap_id,
                           const char *snap_name) {
     EXPECT_CALL(*mock_image_ctx.operations, snap_rename(snap_id, CStrEq(snap_name), _))
                   .WillOnce(SaveArg<2>(on_finish));
   }
 
-  void expect_snap_protect(MockImageCtx &mock_image_ctx,
+  void expect_snap_protect(MockReplayImageCtx &mock_image_ctx,
                            Context **on_finish, const char *snap_name) {
     EXPECT_CALL(*mock_image_ctx.operations, snap_protect(CStrEq(snap_name), _))
                   .WillOnce(SaveArg<1>(on_finish));
   }
 
-  void expect_snap_unprotect(MockImageCtx &mock_image_ctx,
+  void expect_snap_unprotect(MockReplayImageCtx &mock_image_ctx,
                              Context **on_finish, const char *snap_name) {
     EXPECT_CALL(*mock_image_ctx.operations, snap_unprotect(CStrEq(snap_name), _))
                   .WillOnce(SaveArg<1>(on_finish));
   }
 
-  void expect_snap_rollback(MockImageCtx &mock_image_ctx,
+  void expect_snap_rollback(MockReplayImageCtx &mock_image_ctx,
                             Context **on_finish, const char *snap_name) {
     EXPECT_CALL(*mock_image_ctx.operations, snap_rollback(CStrEq(snap_name), _, _))
                   .WillOnce(SaveArg<2>(on_finish));
@@ -178,7 +187,7 @@ public:
     mock_journal_replay.process(it, on_ready, on_safe);
   }
 
-  void when_complete(MockImageCtx &mock_image_ctx, AioCompletion *aio_comp,
+  void when_complete(MockReplayImageCtx &mock_image_ctx, AioCompletion *aio_comp,
                      int r) {
     aio_comp->get();
     aio_comp->set_request_count(mock_image_ctx.cct, 1);
@@ -209,7 +218,7 @@ TEST_F(TestMockJournalReplay, AioDiscard) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
-  MockImageCtx mock_image_ctx(*ictx);
+  MockReplayImageCtx mock_image_ctx(*ictx);
   MockJournalReplay mock_journal_replay(mock_image_ctx);
   MockAioImageRequest mock_aio_image_request;
   expect_op_work_queue(mock_image_ctx);
@@ -237,7 +246,7 @@ TEST_F(TestMockJournalReplay, AioWrite) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
-  MockImageCtx mock_image_ctx(*ictx);
+  MockReplayImageCtx mock_image_ctx(*ictx);
   MockJournalReplay mock_journal_replay(mock_image_ctx);
   MockAioImageRequest mock_aio_image_request;
   expect_op_work_queue(mock_image_ctx);
@@ -265,7 +274,7 @@ TEST_F(TestMockJournalReplay, AioFlush) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
-  MockImageCtx mock_image_ctx(*ictx);
+  MockReplayImageCtx mock_image_ctx(*ictx);
   MockJournalReplay mock_journal_replay(mock_image_ctx);
   MockAioImageRequest mock_aio_image_request;
   expect_op_work_queue(mock_image_ctx);
@@ -291,7 +300,7 @@ TEST_F(TestMockJournalReplay, IOError) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
-  MockImageCtx mock_image_ctx(*ictx);
+  MockReplayImageCtx mock_image_ctx(*ictx);
   MockJournalReplay mock_journal_replay(mock_image_ctx);
   MockAioImageRequest mock_aio_image_request;
   expect_op_work_queue(mock_image_ctx);
@@ -319,7 +328,7 @@ TEST_F(TestMockJournalReplay, SoftFlushIO) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
-  MockImageCtx mock_image_ctx(*ictx);
+  MockReplayImageCtx mock_image_ctx(*ictx);
   MockJournalReplay mock_journal_replay(mock_image_ctx);
   MockAioImageRequest mock_aio_image_request;
   expect_op_work_queue(mock_image_ctx);
@@ -358,7 +367,7 @@ TEST_F(TestMockJournalReplay, PauseIO) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
-  MockImageCtx mock_image_ctx(*ictx);
+  MockReplayImageCtx mock_image_ctx(*ictx);
   MockJournalReplay mock_journal_replay(mock_image_ctx);
   MockAioImageRequest mock_aio_image_request;
   expect_op_work_queue(mock_image_ctx);
@@ -401,7 +410,7 @@ TEST_F(TestMockJournalReplay, MissingOpFinishEvent) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
-  MockImageCtx mock_image_ctx(*ictx);
+  MockReplayImageCtx mock_image_ctx(*ictx);
   MockJournalReplay mock_journal_replay(mock_image_ctx);
   expect_op_work_queue(mock_image_ctx);
 
@@ -425,7 +434,7 @@ TEST_F(TestMockJournalReplay, UnknownOpFinishEvent) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
-  MockImageCtx mock_image_ctx(*ictx);
+  MockReplayImageCtx mock_image_ctx(*ictx);
   MockJournalReplay mock_journal_replay(mock_image_ctx);
   expect_op_work_queue(mock_image_ctx);
 
@@ -445,7 +454,7 @@ TEST_F(TestMockJournalReplay, OpEventError) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
-  MockImageCtx mock_image_ctx(*ictx);
+  MockReplayImageCtx mock_image_ctx(*ictx);
   MockJournalReplay mock_journal_replay(mock_image_ctx);
   expect_op_work_queue(mock_image_ctx);
 
@@ -476,7 +485,7 @@ TEST_F(TestMockJournalReplay, SnapCreateEvent) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
-  MockImageCtx mock_image_ctx(*ictx);
+  MockReplayImageCtx mock_image_ctx(*ictx);
   MockJournalReplay mock_journal_replay(mock_image_ctx);
   expect_op_work_queue(mock_image_ctx);
 
@@ -512,7 +521,7 @@ TEST_F(TestMockJournalReplay, SnapRemoveEvent) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
-  MockImageCtx mock_image_ctx(*ictx);
+  MockReplayImageCtx mock_image_ctx(*ictx);
   MockJournalReplay mock_journal_replay(mock_image_ctx);
   expect_op_work_queue(mock_image_ctx);
 
@@ -543,7 +552,7 @@ TEST_F(TestMockJournalReplay, SnapRenameEvent) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
-  MockImageCtx mock_image_ctx(*ictx);
+  MockReplayImageCtx mock_image_ctx(*ictx);
   MockJournalReplay mock_journal_replay(mock_image_ctx);
   expect_op_work_queue(mock_image_ctx);
 
@@ -575,7 +584,7 @@ TEST_F(TestMockJournalReplay, SnapProtectEvent) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
-  MockImageCtx mock_image_ctx(*ictx);
+  MockReplayImageCtx mock_image_ctx(*ictx);
   MockJournalReplay mock_journal_replay(mock_image_ctx);
   expect_op_work_queue(mock_image_ctx);
 
@@ -606,7 +615,7 @@ TEST_F(TestMockJournalReplay, SnapUnprotectEvent) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
-  MockImageCtx mock_image_ctx(*ictx);
+  MockReplayImageCtx mock_image_ctx(*ictx);
   MockJournalReplay mock_journal_replay(mock_image_ctx);
   expect_op_work_queue(mock_image_ctx);
 
@@ -637,7 +646,7 @@ TEST_F(TestMockJournalReplay, SnapRollbackEvent) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
-  MockImageCtx mock_image_ctx(*ictx);
+  MockReplayImageCtx mock_image_ctx(*ictx);
   MockJournalReplay mock_journal_replay(mock_image_ctx);
   expect_op_work_queue(mock_image_ctx);
 
@@ -668,7 +677,7 @@ TEST_F(TestMockJournalReplay, RenameEvent) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
-  MockImageCtx mock_image_ctx(*ictx);
+  MockReplayImageCtx mock_image_ctx(*ictx);
   MockJournalReplay mock_journal_replay(mock_image_ctx);
   expect_op_work_queue(mock_image_ctx);
 
@@ -699,7 +708,7 @@ TEST_F(TestMockJournalReplay, ResizeEvent) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
-  MockImageCtx mock_image_ctx(*ictx);
+  MockReplayImageCtx mock_image_ctx(*ictx);
   MockJournalReplay mock_journal_replay(mock_image_ctx);
   expect_op_work_queue(mock_image_ctx);
 
@@ -735,7 +744,7 @@ TEST_F(TestMockJournalReplay, FlattenEvent) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
-  MockImageCtx mock_image_ctx(*ictx);
+  MockReplayImageCtx mock_image_ctx(*ictx);
   MockJournalReplay mock_journal_replay(mock_image_ctx);
   expect_op_work_queue(mock_image_ctx);
 
@@ -766,7 +775,7 @@ TEST_F(TestMockJournalReplay, UnknownEvent) {
   librbd::ImageCtx *ictx;
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
-  MockImageCtx mock_image_ctx(*ictx);
+  MockReplayImageCtx mock_image_ctx(*ictx);
   MockJournalReplay mock_journal_replay(mock_image_ctx);
   expect_op_work_queue(mock_image_ctx);
 
