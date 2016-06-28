@@ -431,15 +431,25 @@ void ImageReplayer<I>::handle_bootstrap(int r) {
     return;
   }
 
+  // keep local copy of local journal to protect against watch failure
+  // shutting the journal down in the background
+  assert(m_local_journal == nullptr);
+  {
+    RWLock::RLocker snap_locker(m_local_image_ctx->snap_lock);
+    if (m_local_image_ctx->journal == nullptr) {
+      on_start_fail(-EINVAL, "error initializing local journal");
+      return;
+    }
+    m_local_journal = m_local_image_ctx->journal;
+  }
+
   {
     Mutex::Locker locker(m_lock);
-
-    m_local_image_ctx->journal->add_listener(
-                                    librbd::journal::ListenerType::RESYNC,
-                                    m_resync_listener);
+    m_local_journal->add_listener(librbd::journal::ListenerType::RESYNC,
+                                  m_resync_listener);
 
     bool do_resync = false;
-    r = m_local_image_ctx->journal->check_resync_requested(&do_resync);
+    r = m_local_journal->check_resync_requested(&do_resync);
     if (r < 0) {
       derr << "failed to check if a resync was requested" << dendl;
     }
@@ -500,23 +510,12 @@ template <typename I>
 void ImageReplayer<I>::start_replay() {
   dout(20) << dendl;
 
-  assert(m_local_journal == nullptr);
-  {
-    RWLock::RLocker snap_locker(m_local_image_ctx->snap_lock);
-    if (m_local_image_ctx->journal != nullptr) {
-      m_local_journal = m_local_image_ctx->journal;
-
-      Context *start_ctx = create_context_callback<
-        ImageReplayer, &ImageReplayer<I>::handle_start_replay>(this);
-      Context *stop_ctx = create_context_callback<
-        ImageReplayer, &ImageReplayer<I>::handle_stop_replay_request>(this);
-      m_local_journal->start_external_replay(&m_local_replay, start_ctx,
-                                             stop_ctx);
-      return;
-    }
-  }
-
-  on_start_fail(-EINVAL, "error starting journal replay");
+  RWLock::RLocker snap_locker(m_local_image_ctx->snap_lock);
+  Context *start_ctx = create_context_callback<
+    ImageReplayer, &ImageReplayer<I>::handle_start_replay>(this);
+  Context *stop_ctx = create_context_callback<
+    ImageReplayer, &ImageReplayer<I>::handle_stop_replay_request>(this);
+  m_local_journal->start_external_replay(&m_local_replay, start_ctx, stop_ctx);
 }
 
 template <typename I>
@@ -524,7 +523,6 @@ void ImageReplayer<I>::handle_start_replay(int r) {
   dout(20) << "r=" << r << dendl;
 
   if (r < 0) {
-    m_local_journal = nullptr;
     derr << "error starting external replay on local image "
 	 <<  m_local_image_id << ": " << cpp_strerror(r) << dendl;
     on_start_fail(r, "error starting replay on local image");
@@ -864,7 +862,7 @@ void ImageReplayer<I>::replay_flush() {
   Context *ctx = create_context_callback<
     ImageReplayer<I>, &ImageReplayer<I>::handle_replay_flush>(this);
   ctx = new FunctionContext([this, ctx](int r) {
-      m_local_image_ctx->journal->stop_external_replay();
+      m_local_journal->stop_external_replay();
       m_local_replay = nullptr;
 
       if (r < 0) {
@@ -1289,13 +1287,16 @@ void ImageReplayer<I>::shut_down(int r, Context *on_start) {
         });
     }
   }
+  ctx = new FunctionContext([this, ctx](int r) {
+      m_local_journal = nullptr;
+      ctx->complete(0);
+    });
   if (m_local_replay != nullptr) {
     ctx = new FunctionContext([this, ctx](int r) {
         if (r < 0) {
           derr << "error flushing journal replay: " << cpp_strerror(r) << dendl;
         }
         m_local_journal->stop_external_replay();
-        m_local_journal = nullptr;
         m_local_replay = nullptr;
         ctx->complete(0);
       });
