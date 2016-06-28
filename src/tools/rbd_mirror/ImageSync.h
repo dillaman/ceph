@@ -63,6 +63,9 @@ private:
    * <start>
    *    |
    *    v
+   * UPDATE_CLIENT (skip if not
+   *    |           needed)
+   *    v
    * PRUNE_CATCH_UP_SYNC_POINT
    *    |
    *    v
@@ -110,6 +113,9 @@ private:
   image_sync::SnapshotCopyRequest<ImageCtxT> *m_snapshot_copy_request = nullptr;
   image_sync::ImageCopyRequest<ImageCtxT> *m_image_copy_request = nullptr;
   decltype(ImageCtxT::object_map) m_object_map = nullptr;
+
+  void send_update_client();
+  void handle_update_client(int r);
 
   void send_prune_catch_up_sync_point();
   void handle_prune_catch_up_sync_point(int r);

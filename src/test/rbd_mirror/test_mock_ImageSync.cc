@@ -191,6 +191,11 @@ public:
     ASSERT_EQ(0, open_image(m_local_io_ctx, m_image_name, &m_local_image_ctx));
   }
 
+  void expect_update_client(journal::MockJournaler &mock_journaler, int r) {
+    EXPECT_CALL(mock_journaler, update_client(_, _))
+      .WillOnce(WithArg<1>(CompleteContext(r)));
+  }
+
   void expect_create_sync_point(librbd::MockTestImageCtx &mock_local_image_ctx,
                                 MockSyncPointCreateRequest &mock_sync_point_create_request,
                                 int r) {
@@ -288,6 +293,7 @@ TEST_F(TestMockImageSync, SimpleSync) {
   expect_test_features(mock_local_image_ctx);
 
   InSequence seq;
+  expect_update_client(mock_journaler, 0);
   expect_create_sync_point(mock_local_image_ctx, mock_sync_point_create_request, 0);
   expect_copy_snapshots(mock_snapshot_copy_request, 0);
   expect_copy_image(mock_image_copy_request, 0);
@@ -304,6 +310,22 @@ TEST_F(TestMockImageSync, SimpleSync) {
   ASSERT_EQ(0, ctx.wait());
 }
 
+TEST_F(TestMockImageSync, UpdateClientError) {
+  librbd::MockTestImageCtx mock_remote_image_ctx(*m_remote_image_ctx);
+  librbd::MockTestImageCtx mock_local_image_ctx(*m_local_image_ctx);
+  journal::MockJournaler mock_journaler;
+
+  InSequence seq;
+  expect_update_client(mock_journaler, -ENOENT);
+
+  C_SaferCond ctx;
+  MockImageSync *request = create_request(mock_remote_image_ctx,
+                                          mock_local_image_ctx,
+                                          mock_journaler, &ctx);
+  request->send();
+  ASSERT_EQ(-ENOENT, ctx.wait());
+}
+
 TEST_F(TestMockImageSync, RestartSync) {
   librbd::MockTestImageCtx mock_remote_image_ctx(*m_remote_image_ctx);
   librbd::MockTestImageCtx mock_local_image_ctx(*m_local_image_ctx);
@@ -313,6 +335,7 @@ TEST_F(TestMockImageSync, RestartSync) {
   MockSyncPointCreateRequest mock_sync_point_create_request;
   MockSyncPointPruneRequest mock_sync_point_prune_request;
 
+  m_client_meta.state = librbd::journal::MIRROR_PEER_STATE_SYNCING;
   m_client_meta.sync_points = {{"snap1", boost::none},
                                {"snap2", "snap1", boost::none}};
   mock_local_image_ctx.snap_ids["snap1"] = 123;
@@ -351,6 +374,7 @@ TEST_F(TestMockImageSync, CancelImageCopy) {
   m_client_meta.sync_points = {{"snap1", boost::none}};
 
   InSequence seq;
+  expect_update_client(mock_journaler, 0);
   expect_prune_sync_point(mock_sync_point_prune_request, false, 0);
   expect_copy_snapshots(mock_snapshot_copy_request, 0);
 
@@ -393,6 +417,7 @@ TEST_F(TestMockImageSync, CancelAfterCopySnapshots) {
                                           mock_local_image_ctx,
                                           mock_journaler, &ctx);
   InSequence seq;
+  expect_update_client(mock_journaler, 0);
   expect_create_sync_point(mock_local_image_ctx, mock_sync_point_create_request, 0);
   EXPECT_CALL(mock_snapshot_copy_request, send())
     .WillOnce((DoAll(InvokeWithoutArgs([request]() {
@@ -425,6 +450,7 @@ TEST_F(TestMockImageSync, CancelAfterCopyImage) {
                                           mock_local_image_ctx,
                                           mock_journaler, &ctx);
   InSequence seq;
+  expect_update_client(mock_journaler, 0);
   expect_create_sync_point(mock_local_image_ctx, mock_sync_point_create_request, 0);
   expect_copy_snapshots(mock_snapshot_copy_request, 0);
   EXPECT_CALL(mock_image_copy_request, send())

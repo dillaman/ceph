@@ -501,6 +501,8 @@ void ClientData::generate_test_instances(std::list<ClientData *> &o) {
   o.push_back(new ClientData(ImageClientMeta(123)));
   o.push_back(new ClientData(MirrorPeerClientMeta()));
   o.push_back(new ClientData(MirrorPeerClientMeta("image_id",
+                                                  MIRROR_PEER_STATE_SYNCING,
+                                                  456,
                                                   {{"snap 2", "snap 1", 123}},
                                                   {{1, 2}, {3, 4}})));
   o.push_back(new ClientData(CliClientMeta()));
@@ -629,6 +631,12 @@ std::ostream &operator<<(std::ostream &out, const MirrorPeerSyncPoint &sync) {
 
 std::ostream &operator<<(std::ostream &out, const MirrorPeerState &state) {
   switch (state) {
+  case MIRROR_PEER_STATE_UNREGISTERED:
+    out << "Unregistered";
+    break;
+  case MIRROR_PEER_STATE_REGISTERING:
+    out << "Registering";
+    break;
   case MIRROR_PEER_STATE_SYNCING:
     out << "Syncing";
     break;

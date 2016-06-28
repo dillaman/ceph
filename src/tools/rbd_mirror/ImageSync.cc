@@ -49,7 +49,7 @@ ImageSync<I>::~ImageSync() {
 
 template <typename I>
 void ImageSync<I>::send() {
-  send_prune_catch_up_sync_point();
+  send_update_client();
 }
 
 template <typename I>
@@ -67,6 +67,43 @@ void ImageSync<I>::cancel() {
   if (m_image_copy_request != nullptr) {
     m_image_copy_request->cancel();
   }
+}
+
+template <typename I>
+void ImageSync<I>::send_update_client() {
+  if (m_client_meta->state == librbd::journal::MIRROR_PEER_STATE_SYNCING) {
+    send_prune_catch_up_sync_point();
+    return;
+  }
+
+  dout(20) << dendl;
+  update_progress("UPDATE_CLIENT");
+
+  librbd::journal::MirrorPeerClientMeta client_meta(*m_client_meta);
+  client_meta.state = librbd::journal::MIRROR_PEER_STATE_SYNCING;
+
+  librbd::journal::ClientData client_data(client_meta);
+  bufferlist data_bl;
+  ::encode(client_data, data_bl);
+
+  Context *ctx = create_context_callback<
+    ImageSync<I>, &ImageSync<I>::handle_update_client>(this);
+  m_journaler->update_client(data_bl, ctx);
+}
+
+template <typename I>
+void ImageSync<I>::handle_update_client(int r) {
+  dout(20) << ": r=" << r << dendl;
+
+  if (r < 0) {
+    derr << ": failed to prune catch-up sync point: "
+         << cpp_strerror(r) << dendl;
+    finish(r);
+    return;
+  }
+
+  m_client_meta->state = librbd::journal::MIRROR_PEER_STATE_SYNCING;
+  send_prune_catch_up_sync_point();
 }
 
 template <typename I>

@@ -383,8 +383,10 @@ struct MirrorPeerSyncPoint {
 };
 
 enum MirrorPeerState {
-  MIRROR_PEER_STATE_SYNCING,
-  MIRROR_PEER_STATE_REPLAYING
+  MIRROR_PEER_STATE_UNREGISTERED = -1,
+  MIRROR_PEER_STATE_SYNCING      = 0,
+  MIRROR_PEER_STATE_REPLAYING    = 1,
+  MIRROR_PEER_STATE_REGISTERING  = 2
 };
 
 struct MirrorPeerClientMeta {
@@ -394,7 +396,7 @@ struct MirrorPeerClientMeta {
   static const ClientMetaType TYPE = MIRROR_PEER_CLIENT_META_TYPE;
 
   std::string image_id;
-  MirrorPeerState state = MIRROR_PEER_STATE_SYNCING; ///< replay state
+  MirrorPeerState state = MIRROR_PEER_STATE_UNREGISTERED; ///< replay state
   uint64_t sync_object_count = 0; ///< maximum number of objects ever sync'ed
   SyncPoints sync_points;         ///< max two in-use snapshots for sync
   SnapSeqs snap_seqs;             ///< local to peer snap seq mapping
@@ -402,9 +404,12 @@ struct MirrorPeerClientMeta {
   MirrorPeerClientMeta() {
   }
   MirrorPeerClientMeta(const std::string &image_id,
+                       MirrorPeerState state = MIRROR_PEER_STATE_UNREGISTERED,
+                       uint64_t sync_object_count = 0,
                        const SyncPoints &sync_points = SyncPoints(),
                        const SnapSeqs &snap_seqs = SnapSeqs())
-    : image_id(image_id), sync_points(sync_points), snap_seqs(snap_seqs) {
+    : image_id(image_id), state(state), sync_object_count(sync_object_count),
+      sync_points(sync_points), snap_seqs(snap_seqs) {
   }
 
   inline bool operator==(const MirrorPeerClientMeta &meta) const {

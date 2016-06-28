@@ -208,8 +208,9 @@ void BootstrapRequest<I>::register_client() {
   update_progress("REGISTER_CLIENT");
 
   // record an place-holder record
-  librbd::journal::ClientData client_data{
-    librbd::journal::MirrorPeerClientMeta{m_local_image_id}};
+  librbd::journal::ClientData client_data{librbd::journal::MirrorPeerClientMeta{
+    m_local_image_id, librbd::journal::MIRROR_PEER_STATE_REGISTERING, 0, {},
+    {}}};
   bufferlist client_data_bl;
   ::encode(client_data, client_data_bl);
 
