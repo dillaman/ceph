@@ -10,10 +10,7 @@
 namespace librbd {
 
 struct MockJournalPolicy : public journal::Policy {
-
   MOCK_METHOD1(allocate_tag_on_lock, void(Context*));
-  MOCK_METHOD1(cancel_external_replay, void(Context*));
-
 };
 
 } // namespace librbd
