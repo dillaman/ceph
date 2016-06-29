@@ -104,16 +104,12 @@ private:
    * OPEN_LOCAL_IMAGE * * * * * * * * * * * * *
    *    |   .   ^                             *
    *    |   .   |                             *
-   *    |   .   \-----------------------\     *
-   *    |   .                           |     *
-   *    |   . (image sync requested)    |     *
-   *    |   . . > REMOVE_LOCAL_IMAGE  * * * * *
-   *    |   .                   |       |     *
-   *    |   . (image doesn't    |       |     *
-   *    |   .  exist)           v       |     *
+   *    |   .   \---------------\             *
+   *    |   .                   |             *
+   *    |   . (image doesn't    |             *
+   *    |   .  exist)           |             *
    *    |   . . > CREATE_LOCAL_IMAGE  * * * * *
-   *    |             |                 |     *
-   *    |             \-----------------/     *
+   *    |                                     *
    *    |                                     *
    *    v (skip if not needed)                *
    * UPDATE_CLIENT  * * * * * * * *           *
@@ -181,9 +177,6 @@ private:
 
   void open_local_image();
   void handle_open_local_image(int r);
-
-  void remove_local_image();
-  void handle_remove_local_image(int r);
 
   void create_local_image();
   void handle_create_local_image(int r);

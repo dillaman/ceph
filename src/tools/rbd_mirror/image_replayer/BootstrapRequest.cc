@@ -339,22 +339,6 @@ void BootstrapRequest<I>::handle_open_local_image(int r) {
 }
 
 template <typename I>
-void BootstrapRequest<I>::remove_local_image() {
-  dout(20) << dendl;
-
-  update_progress("REMOVE_LOCAL_IMAGE");
-
-  // TODO
-}
-
-template <typename I>
-void BootstrapRequest<I>::handle_remove_local_image(int r) {
-  dout(20) << ": r=" << r << dendl;
-
-  // TODO
-}
-
-template <typename I>
 void BootstrapRequest<I>::create_local_image() {
   dout(20) << dendl;
 
