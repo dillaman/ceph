@@ -7,13 +7,31 @@
 #include "include/int_types.h"
 #include "include/rados/librados.hpp"
 #include "include/rbd/librbd.hpp"
+#include "journal/Journaler.h"
 #include "librbd/internal.h"
+#include "librbd/journal/TypeTraits.h"
 #include <string>
+
+class ContextWQ;
+class Mutex;
+class SafeTimer;
+namespace journal { class Journaler; }
+namespace librbd { class ImageCtx; }
 
 namespace rbd {
 namespace mirror {
 namespace image_replayer {
 namespace utils {
+
+template <typename ImageCtxT>
+typename librbd::journal::TypeTraits<ImageCtxT>::Journaler *
+create_journaler(ContextWQ *work_queue, SafeTimer *timer, Mutex *timer_lock,
+                 librados::IoCtx &header_ioctx, ImageCtxT *dummy_image_ctx,
+                 const std::string &journal_id, const std::string &client_id,
+                 double commit_interval) {
+  return new journal::Journaler(work_queue, timer, timer_lock, header_ioctx,
+                                journal_id, client_id, commit_interval);
+}
 
 // TODO: free-functions used for mocking until create/clone
 //       converted to async state machines

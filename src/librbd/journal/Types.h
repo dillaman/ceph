@@ -495,6 +495,14 @@ struct TagData {
   void dump(Formatter *f) const;
 
   static void generate_test_instances(std::list<TagData *> &o);
+
+  inline bool operator==(const TagData &rhs) const {
+    return (mirror_uuid == rhs.mirror_uuid &&
+            predecessor_mirror_uuid == rhs.predecessor_mirror_uuid &&
+            predecessor_commit_valid == rhs.predecessor_commit_valid &&
+            predecessor_tag_tid == rhs.predecessor_tag_tid &&
+            predecessor_entry_tid == rhs.predecessor_entry_tid);
+  }
 };
 
 std::ostream &operator<<(std::ostream &out, const EventType &type);

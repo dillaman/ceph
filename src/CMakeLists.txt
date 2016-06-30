@@ -1215,8 +1215,10 @@ if(${WITH_RBD})
     tools/rbd_mirror/image_replayer/CloseImageRequest.cc
     tools/rbd_mirror/image_replayer/CreateImageRequest.cc
     tools/rbd_mirror/image_replayer/OpenImageRequest.cc
+    tools/rbd_mirror/image_replayer/OpenJournalRequest.cc
     tools/rbd_mirror/image_replayer/OpenLocalImageRequest.cc
     tools/rbd_mirror/image_replayer/ReplayStatusFormatter.cc
+    tools/rbd_mirror/image_replayer/Utils.cc
     tools/rbd_mirror/image_sync/ImageCopyRequest.cc
     tools/rbd_mirror/image_sync/ObjectCopyRequest.cc
     tools/rbd_mirror/image_sync/SnapshotCopyRequest.cc
