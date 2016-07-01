@@ -389,10 +389,10 @@ void ImageReplayer<I>::bootstrap() {
 
   BootstrapRequest<I> *request = BootstrapRequest<I>::create(
     m_local_ioctx, m_remote_ioctx, m_image_sync_throttler,
-    &m_local_image_ctx, m_local_image_name, m_remote_image_id,
-    m_global_image_id, m_threads->work_queue, m_threads->timer,
-    &m_threads->timer_lock, m_local_mirror_uuid, m_remote_mirror_uuid,
-    m_remote_journaler, &m_client_meta, ctx, &m_progress_cxt);
+    &m_local_image_ctx, m_remote_image_id, m_global_image_id,
+    m_threads->work_queue, m_threads->timer, &m_threads->timer_lock,
+    m_local_mirror_uuid, m_remote_mirror_uuid, m_remote_journaler,
+    &m_client_meta, ctx, &m_progress_cxt);
 
   {
     Mutex::Locker locker(m_lock);

@@ -63,7 +63,6 @@ struct BootstrapRequest<librbd::MockTestImageCtx> {
         librados::IoCtx &remote_io_ctx,
         rbd::mirror::ImageSyncThrottlerRef<librbd::MockTestImageCtx> image_sync_throttler,
         librbd::MockTestImageCtx **local_image_ctx,
-        const std::string &local_image_name,
         const std::string &remote_image_id,
         const std::string &global_image_id,
         ContextWQ *work_queue, SafeTimer *timer,
