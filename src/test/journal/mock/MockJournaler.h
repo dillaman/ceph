@@ -108,6 +108,8 @@ struct MockJournaler {
 
   MOCK_METHOD3(get_tag, void(uint64_t, cls::journal::Tag *, Context *));
   MOCK_METHOD3(get_tags, void(uint64_t, journal::Journaler::Tags*, Context*));
+  MOCK_METHOD4(get_tags, void(uint64_t, uint64_t, journal::Journaler::Tags*,
+                              Context*));
 
   MOCK_METHOD1(start_replay, void(::journal::ReplayHandler *replay_handler));
   MOCK_METHOD2(start_live_replay, void(ReplayHandler *, double));

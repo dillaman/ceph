@@ -70,8 +70,8 @@ public:
   void allocate_tag(uint64_t tag_class, const bufferlist &data,
                     Tag *tag, Context *on_finish);
   void get_tag(uint64_t tag_tid, Tag *tag, Context *on_finish);
-  void get_tags(const boost::optional<uint64_t> &tag_class, Tags *tags,
-                Context *on_finish);
+  void get_tags(const boost::optional<uint64_t> &tag_class,
+                uint64_t start_after_tag_tid, Tags *tags, Context *on_finish);
 
   inline const std::string &get_client_id() const {
     return m_client_id;

@@ -257,19 +257,21 @@ struct C_GetTags : public Context {
   const std::string &client_id;
   AsyncOpTracker &async_op_tracker;
   boost::optional<uint64_t> tag_class;
+  uint64_t start_after_tag_tid;
   JournalMetadata::Tags *tags;
   Context *on_finish;
 
   const uint64_t MAX_RETURN = 64;
-  uint64_t start_after_tag_tid = 0;
   bufferlist out_bl;
 
   C_GetTags(CephContext *cct, librados::IoCtx &ioctx, const std::string &oid,
             const std::string &client_id, AsyncOpTracker &async_op_tracker,
             const boost::optional<uint64_t> &tag_class,
-            JournalMetadata::Tags *tags, Context *on_finish)
+            uint64_t start_after_tag_tid, JournalMetadata::Tags *tags,
+            Context *on_finish)
     : cct(cct), ioctx(ioctx), oid(oid), client_id(client_id),
-      async_op_tracker(async_op_tracker), tag_class(tag_class), tags(tags),
+      async_op_tracker(async_op_tracker), tag_class(tag_class),
+      start_after_tag_tid(start_after_tag_tid), tags(tags),
       on_finish(on_finish) {
     async_op_tracker.start_op();
   }
@@ -580,10 +582,11 @@ void JournalMetadata::get_tag(uint64_t tag_tid, Tag *tag, Context *on_finish) {
 }
 
 void JournalMetadata::get_tags(const boost::optional<uint64_t> &tag_class,
-                               Tags *tags, Context *on_finish) {
+                               uint64_t start_after_tag_tid, Tags *tags,
+                               Context *on_finish) {
   C_GetTags *ctx = new C_GetTags(m_cct, m_ioctx, m_oid, m_client_id,
                                  m_async_op_tracker, tag_class,
-                                 tags, on_finish);
+                                 start_after_tag_tid, tags, on_finish);
   ctx->send();
 }
 
