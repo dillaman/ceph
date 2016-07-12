@@ -1217,6 +1217,7 @@ if(${WITH_RBD})
     tools/rbd_mirror/image_replayer/OpenImageRequest.cc
     tools/rbd_mirror/image_replayer/OpenJournalRequest.cc
     tools/rbd_mirror/image_replayer/OpenLocalImageRequest.cc
+    tools/rbd_mirror/image_replayer/OpenRemoteJournalRequest.cc
     tools/rbd_mirror/image_replayer/ReplayStatusFormatter.cc
     tools/rbd_mirror/image_replayer/Utils.cc
     tools/rbd_mirror/image_sync/ImageCopyRequest.cc
