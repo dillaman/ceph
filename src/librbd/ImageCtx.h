@@ -191,6 +191,8 @@ namespace librbd {
     int journal_max_concurrent_object_sets;
     bool mirroring_resync_after_disconnect;
 
+    bool persistent_cache_enabled;
+
     LibrbdAdminSocketHook *asok_hook;
 
     exclusive_lock::Policy *exclusive_lock_policy = nullptr;

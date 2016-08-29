@@ -30,6 +30,7 @@
 #include "librbd/operation/ResizeRequest.h"
 #include "librbd/Utils.h"
 #include "librbd/LibrbdWriteback.h"
+#include "librbd/cache/FileImageCache.h"
 
 #include "osdc/Striper.h"
 #include <boost/bind.hpp>
@@ -946,7 +947,8 @@ struct C_InvalidateCache : public Context {
         "rbd_journal_pool", false)(
         "rbd_journal_max_payload_bytes", false)(
         "rbd_journal_max_concurrent_object_sets", false)(
-        "rbd_mirroring_resync_after_disconnect", false);
+        "rbd_mirroring_resync_after_disconnect", false)(
+        "rbd_persistent_cache_enabled", false);
 
     md_config_t local_config_t;
     std::map<std::string, bufferlist> res;
@@ -1004,6 +1006,7 @@ struct C_InvalidateCache : public Context {
     ASSIGN_OPTION(journal_max_payload_bytes);
     ASSIGN_OPTION(journal_max_concurrent_object_sets);
     ASSIGN_OPTION(mirroring_resync_after_disconnect);
+    ASSIGN_OPTION(persistent_cache_enabled);
   }
 
   ExclusiveLock<ImageCtx> *ImageCtx::create_exclusive_lock() {
