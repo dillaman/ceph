@@ -357,9 +357,11 @@ void AioImageRead<I>::send_image_cache_request() {
   aio_comp->set_request_count(1);
   C_ImageCacheRead<I> *req_comp = new C_ImageCacheRead<I>(
     aio_comp, this->m_image_extents);
+
   image_ctx.image_cache->aio_read(std::move(this->m_image_extents),
                                   &req_comp->get_data(), m_op_flags,
                                   req_comp);
+  aio_comp->put();
 }
 
 template <typename I>
@@ -499,8 +501,10 @@ void AioImageWrite<I>::send_image_cache_request() {
   AioCompletion *aio_comp = this->m_aio_comp;
   aio_comp->set_request_count(1);
   C_AioRequest *req_comp = new C_AioRequest(aio_comp);
+
   image_ctx.image_cache->aio_write(std::move(this->m_image_extents),
                                    std::move(m_bl), m_op_flags, req_comp);
+  aio_comp->put();
 }
 
 template <typename I>
@@ -610,10 +614,12 @@ void AioImageDiscard<I>::send_image_cache_request() {
 
   AioCompletion *aio_comp = this->m_aio_comp;
   aio_comp->set_request_count(this->m_image_extents.size());
+
   for (auto &extent : this->m_image_extents) {
     C_AioRequest *req_comp = new C_AioRequest(aio_comp);
     image_ctx.image_cache->aio_discard(extent.first, extent.second, req_comp);
   }
+  aio_comp->put();
 }
 
 template <typename I>
@@ -715,7 +721,9 @@ void AioImageFlush<I>::send_image_cache_request() {
   AioCompletion *aio_comp = this->m_aio_comp;
   aio_comp->set_request_count(1);
   C_AioRequest *req_comp = new C_AioRequest(aio_comp);
+
   image_ctx.image_cache->aio_flush(req_comp);
+  aio_comp->put();
 }
 
 } // namespace librbd
