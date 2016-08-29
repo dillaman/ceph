@@ -1,6 +1,6 @@
 add_library(rbd_types STATIC
   journal/Types.cc
-  mirroring_watcher/Types.cc 
+  mirroring_watcher/Types.cc
   WatchNotifyTypes.cc)
 
 set(librbd_internal_srcs
@@ -21,13 +21,13 @@ set(librbd_internal_srcs
   Journal.cc
   LibrbdAdminSocketHook.cc
   LibrbdWriteback.cc
-  MirroringWatcher.cc 
+  MirroringWatcher.cc
   ObjectMap.cc
-  ObjectWatcher.cc 
+  ObjectWatcher.cc
   Operations.cc
   Utils.cc
   cache/ImageWriteback.cc
-  cache/PassthroughImageCache.cc
+  cache/FileImageCache.cc
   exclusive_lock/AcquireRequest.cc
   exclusive_lock/AutomaticPolicy.cc
   exclusive_lock/ReacquireRequest.cc
@@ -85,22 +85,22 @@ add_library(librbd ${CEPH_SHARED}
   ${CMAKE_SOURCE_DIR}/src/common/ContextCompletion.cc
   librbd.cc)
 if(LINUX)
-  list(APPEND librbd 
-    $<TARGET_OBJECTS:parse_secret_objs>  
+  list(APPEND librbd
+    $<TARGET_OBJECTS:parse_secret_objs>
     $<TARGET_OBJECTS:krbd_objs>
     )
 endif(LINUX)
 
-target_link_libraries(librbd LINK_PRIVATE 
+target_link_libraries(librbd LINK_PRIVATE
   rbd_internal
   rbd_types
   journal
-  librados 
-  common 
+  librados
+  common
   osdc
-  cls_rbd_client 
-  cls_lock_client 
-  cls_journal_client 
+  cls_rbd_client
+  cls_lock_client
+  cls_journal_client
   pthread
   udev
   keyutils
