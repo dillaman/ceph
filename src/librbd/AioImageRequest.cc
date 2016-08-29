@@ -120,9 +120,8 @@ protected:
       }
       assert(length == m_bl.length());
 
-      m_completion->lock.Lock();
-      m_completion->destriper.add_partial_result(cct, m_bl, m_image_extents);
-      m_completion->lock.Unlock();
+      m_completion->destriper.add_partial_sparse_result(
+          cct, m_bl, {{0, length}}, 0, {{0, length}});
       r = length;
     }
     C_AioRequest::finish(r);
@@ -389,11 +388,19 @@ void AioImageRead<I>::send_image_cache_request() {
   I &image_ctx = this->m_image_ctx;
   assert(image_ctx.image_cache != nullptr);
 
+  uint64_t len = 0;
+  for (auto &extent : this->m_image_extents) {
+    len += extent.second;
+  }
+
   AioCompletion *aio_comp = this->m_aio_comp;
+  aio_comp->read_buf = m_buf;
+  aio_comp->read_buf_len = len;
+  aio_comp->read_bl = m_pbl;
   aio_comp->set_request_count(1);
+
   C_ImageCacheRead<I> *req_comp = new C_ImageCacheRead<I>(
     aio_comp, this->m_image_extents);
-
   image_ctx.image_cache->aio_read(std::move(this->m_image_extents),
                                   &req_comp->get_data(), m_op_flags,
                                   req_comp);
