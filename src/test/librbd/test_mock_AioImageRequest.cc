@@ -178,6 +178,11 @@ struct TestMockAioImageRequest : public TestMockFixture {
     EXPECT_CALL(mock_image_ctx, flush(_))
       .WillOnce(CompleteContext(r, mock_image_ctx.image_ctx->op_work_queue));
   }
+
+  void expect_flush_async_operations(MockImageCtx &mock_image_ctx, int r) {
+    EXPECT_CALL(mock_image_ctx, flush_async_operations(_))
+      .WillOnce(CompleteContext(r, mock_image_ctx.image_ctx->op_work_queue));
+  }
 };
 
 TEST_F(TestMockAioImageRequest, AioWriteJournalAppendDisabled) {
@@ -246,6 +251,7 @@ TEST_F(TestMockAioImageRequest, AioFlushJournalAppendDisabled) {
 
   InSequence seq;
   expect_user_flushed(mock_image_ctx);
+  expect_flush_async_operations(mock_image_ctx, 0);
   expect_is_journal_appending(mock_journal, false);
   expect_flush(mock_image_ctx, 0);
 
