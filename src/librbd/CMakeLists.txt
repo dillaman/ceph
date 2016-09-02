@@ -26,6 +26,7 @@ set(librbd_internal_srcs
   ObjectWatcher.cc
   Operations.cc
   Utils.cc
+  cache/BlockGuard.cc
   cache/ImageWriteback.cc
   cache/FileImageCache.cc
   cache/file/AioFile.cc
