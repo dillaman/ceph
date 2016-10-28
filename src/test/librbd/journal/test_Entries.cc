@@ -3,10 +3,10 @@
 
 #include "test/librbd/test_fixture.h"
 #include "test/librbd/test_support.h"
-#include "librbd/AioCompletion.h"
-#include "librbd/AioImageRequestWQ.h"
 #include "librbd/internal.h"
 #include "librbd/Journal.h"
+#include "librbd/io/AioCompletion.h"
+#include "librbd/io/AioImageRequestWQ.h"
 #include "librbd/journal/Types.h"
 #include "journal/Journaler.h"
 #include "journal/ReplayEntry.h"
@@ -127,7 +127,7 @@ TEST_F(TestJournalEntries, AioWrite) {
 
   std::string buffer(512, '1');
   C_SaferCond cond_ctx;
-  librbd::AioCompletion *c = librbd::AioCompletion::create(&cond_ctx);
+  librbd::io::AioCompletion *c = librbd::io::AioCompletion::create(&cond_ctx);
   c->get();
   ictx->aio_work_queue->aio_write(c, 123, buffer.size(), buffer.c_str(), 0);
   ASSERT_EQ(0, c->wait_for_complete());
@@ -170,7 +170,7 @@ TEST_F(TestJournalEntries, AioDiscard) {
   ASSERT_TRUE(journaler != NULL);
 
   C_SaferCond cond_ctx;
-  librbd::AioCompletion *c = librbd::AioCompletion::create(&cond_ctx);
+  librbd::io::AioCompletion *c = librbd::io::AioCompletion::create(&cond_ctx);
   c->get();
   ictx->aio_work_queue->aio_discard(c, 123, 234);
   ASSERT_EQ(0, c->wait_for_complete());
@@ -203,7 +203,7 @@ TEST_F(TestJournalEntries, AioFlush) {
   ASSERT_TRUE(journaler != NULL);
 
   C_SaferCond cond_ctx;
-  librbd::AioCompletion *c = librbd::AioCompletion::create(&cond_ctx);
+  librbd::io::AioCompletion *c = librbd::io::AioCompletion::create(&cond_ctx);
   c->get();
   ictx->aio_work_queue->aio_flush(c);
   ASSERT_EQ(0, c->wait_for_complete());

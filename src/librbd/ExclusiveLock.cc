@@ -5,7 +5,6 @@
 #include "cls/lock/cls_lock_client.h"
 #include "common/dout.h"
 #include "common/errno.h"
-#include "librbd/AioImageRequestWQ.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/ImageState.h"
 #include "librbd/ImageWatcher.h"
@@ -13,6 +12,7 @@
 #include "librbd/exclusive_lock/AcquireRequest.h"
 #include "librbd/exclusive_lock/ReacquireRequest.h"
 #include "librbd/exclusive_lock/ReleaseRequest.h"
+#include "librbd/io/AioImageRequestWQ.h"
 #include <sstream>
 
 #define dout_subsys ceph_subsys_rbd

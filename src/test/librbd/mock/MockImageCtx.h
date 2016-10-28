@@ -5,7 +5,7 @@
 #define CEPH_TEST_LIBRBD_MOCK_IMAGE_CTX_H
 
 #include "include/rados/librados.hpp"
-#include "test/librbd/mock/MockAioImageRequestWQ.h"
+#include "test/librbd/mock/io/MockAioImageRequestWQ.h"
 #include "test/librbd/mock/MockContextWQ.h"
 #include "test/librbd/mock/MockExclusiveLock.h"
 #include "test/librbd/mock/MockImageState.h"
@@ -75,7 +75,7 @@ struct MockImageCtx {
       format_string(image_ctx.format_string),
       group_spec(image_ctx.group_spec),
       layout(image_ctx.layout),
-      aio_work_queue(new MockAioImageRequestWQ()),
+      aio_work_queue(new io::MockAioImageRequestWQ()),
       op_work_queue(new MockContextWQ()),
       readahead_max_bytes(image_ctx.readahead_max_bytes),
       parent(NULL), operations(new MockOperations()),
@@ -242,7 +242,7 @@ struct MockImageCtx {
   xlist<AsyncRequest<MockImageCtx>*> async_requests;
   std::list<Context*> async_requests_waiters;
 
-  MockAioImageRequestWQ *aio_work_queue;
+  io::MockAioImageRequestWQ *aio_work_queue;
   MockContextWQ *op_work_queue;
 
   cache::MockImageCache *image_cache = nullptr;

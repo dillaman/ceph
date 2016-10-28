@@ -11,11 +11,11 @@
 
 namespace librbd {
 
-struct AioObjectRequestHandle;
 struct ImageCtx;
+namespace io { struct AioObjectRequestHandle; }
 
 struct MockJournal {
-  typedef std::list<AioObjectRequestHandle *> AioObjectRequests;
+  typedef std::list<io::AioObjectRequestHandle *> AioObjectRequests;
 
   static MockJournal *s_instance;
   static MockJournal *get_instance() {

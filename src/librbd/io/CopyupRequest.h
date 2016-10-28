@@ -1,18 +1,22 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
 
-#ifndef CEPH_LIBRBD_COPYUP_REQUEST_H
-#define CEPH_LIBRBD_COPYUP_REQUEST_H
+#ifndef CEPH_LIBRBD_IO_COPYUP_REQUEST_H
+#define CEPH_LIBRBD_IO_COPYUP_REQUEST_H
 
 #include "librbd/AsyncOperation.h"
 #include "include/int_types.h"
+#include "include/atomic.h"
 #include "include/buffer.h"
 
 namespace librbd {
 
+struct ImageCtx;
+
+namespace io {
+
 struct AioCompletion;
 template <typename I> class AioObjectRequest;
-struct ImageCtx;
 
 class CopyupRequest {
 public:
@@ -68,7 +72,7 @@ private:
   Extents m_image_extents;
   State m_state;
   ceph::bufferlist m_copyup_data;
-  vector<AioObjectRequest<ImageCtx> *> m_pending_requests;
+  std::vector<AioObjectRequest<ImageCtx> *> m_pending_requests;
   atomic_t m_pending_copyups;
 
   AsyncOperation m_async_op;
@@ -85,6 +89,8 @@ private:
   bool send_copyup();
 };
 
+} // namespace io
 } // namespace librbd
 
-#endif // CEPH_LIBRBD_COPYUP_REQUEST_H
+#endif // CEPH_LIBRBD_IO_COPYUP_REQUEST_H
+

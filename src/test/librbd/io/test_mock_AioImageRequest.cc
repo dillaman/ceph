@@ -6,8 +6,8 @@
 #include "test/librbd/mock/MockImageCtx.h"
 #include "test/librbd/mock/MockJournal.h"
 #include "test/librbd/mock/cache/MockImageCache.h"
-#include "librbd/AioImageRequest.h"
-#include "librbd/AioObjectRequest.h"
+#include "librbd/io/AioImageRequest.h"
+#include "librbd/io/AioObjectRequest.h"
 
 namespace librbd {
 namespace {
@@ -26,6 +26,8 @@ inline ImageCtx *get_image_ctx(MockTestImageCtx *image_ctx) {
 }
 
 } // namespace util
+
+namespace io {
 
 template <>
 struct AioObjectRequest<librbd::MockTestImageCtx> : public AioObjectRequestHandle {
@@ -125,12 +127,14 @@ struct AioObjectRead<librbd::MockTestImageCtx> : public AioObjectRequest<librbd:
 AioObjectRequest<librbd::MockTestImageCtx>* AioObjectRequest<librbd::MockTestImageCtx>::s_instance = nullptr;
 AioObjectRead<librbd::MockTestImageCtx>* AioObjectRead<librbd::MockTestImageCtx>::s_instance = nullptr;
 
+} // namespace io
 } // namespace librbd
 
-#include "librbd/AioImageRequest.cc"
-template class librbd::AioImageRequest<librbd::MockTestImageCtx>;
+#include "librbd/io/AioImageRequest.cc"
+template class librbd::io::AioImageRequest<librbd::MockTestImageCtx>;
 
 namespace librbd {
+namespace io {
 
 using ::testing::_;
 using ::testing::InSequence;
@@ -260,4 +264,5 @@ TEST_F(TestMockAioImageRequest, AioFlushJournalAppendDisabled) {
   ASSERT_EQ(0, aio_comp_ctx.wait());
 }
 
+} // namespace io
 } // namespace librbd

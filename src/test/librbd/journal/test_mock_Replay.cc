@@ -4,7 +4,7 @@
 #include "test/librbd/test_mock_fixture.h"
 #include "test/librbd/test_support.h"
 #include "test/librbd/mock/MockImageCtx.h"
-#include "librbd/AioImageRequest.h"
+#include "librbd/io/AioImageRequest.h"
 #include "librbd/journal/Replay.h"
 #include "librbd/journal/Types.h"
 #include "gmock/gmock.h"
@@ -21,6 +21,8 @@ struct MockReplayImageCtx : public MockImageCtx {
 };
 
 } // anonymous namespace
+
+namespace io {
 
 template <>
 struct AioImageRequest<MockReplayImageCtx> {
@@ -53,6 +55,8 @@ struct AioImageRequest<MockReplayImageCtx> {
 };
 
 AioImageRequest<MockReplayImageCtx> *AioImageRequest<MockReplayImageCtx>::s_instance = nullptr;
+
+} // namespace io
 
 namespace util {
 
@@ -88,7 +92,7 @@ ACTION_P2(NotifyInvoke, lock, cond) {
 ACTION_P2(CompleteAioCompletion, r, image_ctx) {
   image_ctx->op_work_queue->queue(new FunctionContext([this, arg0](int r) {
       arg0->get();
-      arg0->init_time(image_ctx, librbd::AIO_TYPE_NONE);
+      arg0->init_time(image_ctx, librbd::io::AIO_TYPE_NONE);
       arg0->set_request_count(1);
       arg0->complete_request(r);
     }), r);
@@ -99,21 +103,21 @@ namespace journal {
 
 class TestMockJournalReplay : public TestMockFixture {
 public:
-  typedef AioImageRequest<MockReplayImageCtx> MockAioImageRequest;
+  typedef io::AioImageRequest<MockReplayImageCtx> MockAioImageRequest;
   typedef Replay<MockReplayImageCtx> MockJournalReplay;
 
   TestMockJournalReplay() : m_invoke_lock("m_invoke_lock") {
   }
 
   void expect_aio_discard(MockAioImageRequest &mock_aio_image_request,
-                          AioCompletion **aio_comp, uint64_t off,
+                          io::AioCompletion **aio_comp, uint64_t off,
                           uint64_t len) {
     EXPECT_CALL(mock_aio_image_request, aio_discard(_, off, len))
                   .WillOnce(SaveArg<0>(aio_comp));
   }
 
   void expect_aio_flush(MockAioImageRequest &mock_aio_image_request,
-                        AioCompletion **aio_comp) {
+                        io::AioCompletion **aio_comp) {
     EXPECT_CALL(mock_aio_image_request, aio_flush(_))
                   .WillOnce(SaveArg<0>(aio_comp));
   }
@@ -125,7 +129,7 @@ public:
   }
 
   void expect_aio_write(MockAioImageRequest &mock_aio_image_request,
-                        AioCompletion **aio_comp, uint64_t off,
+                        io::AioCompletion **aio_comp, uint64_t off,
                         uint64_t len, const char *data) {
     EXPECT_CALL(mock_aio_image_request,
                 aio_write(_, off, len, CStrEq(data), _))
@@ -250,10 +254,10 @@ public:
     mock_journal_replay.process(event_entry, on_ready, on_safe);
   }
 
-  void when_complete(MockReplayImageCtx &mock_image_ctx, AioCompletion *aio_comp,
-                     int r) {
+  void when_complete(MockReplayImageCtx &mock_image_ctx,
+                     io::AioCompletion *aio_comp, int r) {
     aio_comp->get();
-    aio_comp->init_time(mock_image_ctx.image_ctx, librbd::AIO_TYPE_NONE);
+    aio_comp->init_time(mock_image_ctx.image_ctx, librbd::io::AIO_TYPE_NONE);
     aio_comp->set_request_count(1);
     aio_comp->complete_request(r);
   }
@@ -307,7 +311,7 @@ TEST_F(TestMockJournalReplay, AioDiscard) {
   expect_op_work_queue(mock_image_ctx);
 
   InSequence seq;
-  AioCompletion *aio_comp;
+  io::AioCompletion *aio_comp;
   C_SaferCond on_ready;
   C_SaferCond on_safe;
   expect_aio_discard(mock_aio_image_request, &aio_comp, 123, 456);
@@ -335,7 +339,7 @@ TEST_F(TestMockJournalReplay, AioWrite) {
   expect_op_work_queue(mock_image_ctx);
 
   InSequence seq;
-  AioCompletion *aio_comp;
+  io::AioCompletion *aio_comp;
   C_SaferCond on_ready;
   C_SaferCond on_safe;
   expect_aio_write(mock_aio_image_request, &aio_comp, 123, 456, "test");
@@ -363,7 +367,7 @@ TEST_F(TestMockJournalReplay, AioFlush) {
   expect_op_work_queue(mock_image_ctx);
 
   InSequence seq;
-  AioCompletion *aio_comp;
+  io::AioCompletion *aio_comp;
   C_SaferCond on_ready;
   C_SaferCond on_safe;
   expect_aio_flush(mock_aio_image_request, &aio_comp);
@@ -389,7 +393,7 @@ TEST_F(TestMockJournalReplay, IOError) {
   expect_op_work_queue(mock_image_ctx);
 
   InSequence seq;
-  AioCompletion *aio_comp;
+  io::AioCompletion *aio_comp;
   C_SaferCond on_ready;
   C_SaferCond on_safe;
   expect_aio_discard(mock_aio_image_request, &aio_comp, 123, 456);
@@ -420,8 +424,8 @@ TEST_F(TestMockJournalReplay, SoftFlushIO) {
   const size_t io_count = 32;
   C_SaferCond on_safes[io_count];
   for (size_t i = 0; i < io_count; ++i) {
-    AioCompletion *aio_comp;
-    AioCompletion *flush_comp = nullptr;
+    io::AioCompletion *aio_comp;
+    io::AioCompletion *flush_comp = nullptr;
     C_SaferCond on_ready;
     expect_aio_discard(mock_aio_image_request, &aio_comp, 123, 456);
     if (i == io_count - 1) {
@@ -457,10 +461,10 @@ TEST_F(TestMockJournalReplay, PauseIO) {
 
   InSequence seq;
   const size_t io_count = 64;
-  std::list<AioCompletion *> flush_comps;
+  std::list<io::AioCompletion *> flush_comps;
   C_SaferCond on_safes[io_count];
   for (size_t i = 0; i < io_count; ++i) {
-    AioCompletion *aio_comp;
+    io::AioCompletion *aio_comp;
     C_SaferCond on_ready;
     expect_aio_write(mock_aio_image_request, &aio_comp, 123, 456, "test");
     if ((i + 1) % 32 == 0) {
@@ -497,7 +501,7 @@ TEST_F(TestMockJournalReplay, Flush) {
   expect_op_work_queue(mock_image_ctx);
 
   InSequence seq;
-  AioCompletion *aio_comp = nullptr;
+  io::AioCompletion *aio_comp = nullptr;
   C_SaferCond on_ready;
   C_SaferCond on_safe;
   expect_aio_discard(mock_aio_image_request, &aio_comp, 123, 456);

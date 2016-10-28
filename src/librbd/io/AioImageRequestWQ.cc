@@ -1,22 +1,23 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
 
-#include "librbd/AioImageRequestWQ.h"
+#include "librbd/io/AioImageRequestWQ.h"
 #include "common/errno.h"
-#include "librbd/AioCompletion.h"
-#include "librbd/AioImageRequest.h"
 #include "librbd/ExclusiveLock.h"
 #include "librbd/exclusive_lock/Policy.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/ImageState.h"
 #include "librbd/internal.h"
 #include "librbd/Utils.h"
+#include "librbd/io/AioCompletion.h"
+#include "librbd/io/AioImageRequest.h"
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
 #define dout_prefix *_dout << "librbd::AioImageRequestWQ: "
 
 namespace librbd {
+namespace io {
 
 AioImageRequestWQ::AioImageRequestWQ(ImageCtx *image_ctx, const string &name,
                                      time_t ti, ThreadPool *tp)
@@ -95,7 +96,7 @@ int AioImageRequestWQ::discard(uint64_t off, uint64_t len) {
 void AioImageRequestWQ::aio_read(AioCompletion *c, uint64_t off, uint64_t len,
                                  char *buf, bufferlist *pbl, int op_flags,
                                  bool native_async) {
-  c->init_time(&m_image_ctx, librbd::AIO_TYPE_READ);
+  c->init_time(&m_image_ctx, AIO_TYPE_READ);
   CephContext *cct = m_image_ctx.cct;
   ldout(cct, 20) << "aio_read: ictx=" << &m_image_ctx << ", "
                  << "completion=" << c << ", off=" << off << ", "
@@ -133,7 +134,7 @@ void AioImageRequestWQ::aio_read(AioCompletion *c, uint64_t off, uint64_t len,
 void AioImageRequestWQ::aio_write(AioCompletion *c, uint64_t off, uint64_t len,
                                   const char *buf, int op_flags,
                                   bool native_async) {
-  c->init_time(&m_image_ctx, librbd::AIO_TYPE_WRITE);
+  c->init_time(&m_image_ctx, AIO_TYPE_WRITE);
   CephContext *cct = m_image_ctx.cct;
   ldout(cct, 20) << "aio_write: ictx=" << &m_image_ctx << ", "
                  << "completion=" << c << ", off=" << off << ", "
@@ -159,7 +160,7 @@ void AioImageRequestWQ::aio_write(AioCompletion *c, uint64_t off, uint64_t len,
 
 void AioImageRequestWQ::aio_discard(AioCompletion *c, uint64_t off,
                                     uint64_t len, bool native_async) {
-  c->init_time(&m_image_ctx, librbd::AIO_TYPE_DISCARD);
+  c->init_time(&m_image_ctx, AIO_TYPE_DISCARD);
   CephContext *cct = m_image_ctx.cct;
   ldout(cct, 20) << "aio_discard: ictx=" << &m_image_ctx << ", "
                  << "completion=" << c << ", off=" << off << ", len=" << len
@@ -184,7 +185,7 @@ void AioImageRequestWQ::aio_discard(AioCompletion *c, uint64_t off,
 }
 
 void AioImageRequestWQ::aio_flush(AioCompletion *c, bool native_async) {
-  c->init_time(&m_image_ctx, librbd::AIO_TYPE_FLUSH);
+  c->init_time(&m_image_ctx, AIO_TYPE_FLUSH);
   CephContext *cct = m_image_ctx.cct;
   ldout(cct, 20) << "aio_flush: ictx=" << &m_image_ctx << ", "
                  << "completion=" << c << dendl;
@@ -502,4 +503,6 @@ void AioImageRequestWQ::handle_blocked_writes(int r) {
   }
 }
 
+} // namespace io
 } // namespace librbd
+

@@ -1,6 +1,7 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
 
+#include "librbd/io/AioObjectRequest.h"
 #include "common/ceph_context.h"
 #include "common/dout.h"
 #include "common/errno.h"
@@ -9,14 +10,13 @@
 #include "common/WorkQueue.h"
 #include "include/Context.h"
 
-#include "librbd/AioObjectRequest.h"
-#include "librbd/AioCompletion.h"
-#include "librbd/AioImageRequest.h"
-#include "librbd/CopyupRequest.h"
 #include "librbd/ExclusiveLock.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/ObjectMap.h"
 #include "librbd/Utils.h"
+#include "librbd/io/AioCompletion.h"
+#include "librbd/io/AioImageRequest.h"
+#include "librbd/io/CopyupRequest.h"
 
 #include <boost/bind.hpp>
 #include <boost/optional.hpp>
@@ -26,6 +26,7 @@
 #define dout_prefix *_dout << "librbd::AioObjectRequest: "
 
 namespace librbd {
+namespace io {
 
 template <typename I>
 AioObjectRequest<I>*
@@ -623,7 +624,9 @@ void AioObjectTruncate::send_write() {
   }
 }
 
+} // namespace io
 } // namespace librbd
 
-template class librbd::AioObjectRequest<librbd::ImageCtx>;
-template class librbd::AioObjectRead<librbd::ImageCtx>;
+template class librbd::io::AioObjectRequest<librbd::ImageCtx>;
+template class librbd::io::AioObjectRead<librbd::ImageCtx>;
+

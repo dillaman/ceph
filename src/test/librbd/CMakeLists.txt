@@ -26,7 +26,6 @@ set(unittest_librbd_srcs
   test_ConsistencyGroups.cc
   test_main.cc
   test_mock_fixture.cc
-  test_mock_AioImageRequest.cc
   test_mock_ExclusiveLock.cc
   test_mock_Journal.cc
   test_mock_ObjectWatcher.cc
@@ -38,6 +37,7 @@ set(unittest_librbd_srcs
   journal/test_mock_OpenRequest.cc
   journal/test_mock_PromoteRequest.cc
   journal/test_mock_Replay.cc
+  io/test_mock_AioImageRequest.cc
   mirror/test_mock_DisableRequest.cc
   object_map/test_mock_InvalidateRequest.cc
   object_map/test_mock_LockRequest.cc

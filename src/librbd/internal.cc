@@ -21,11 +21,11 @@
 #include "cls/journal/cls_journal_types.h"
 #include "cls/journal/cls_journal_client.h"
 
-#include "librbd/AioCompletion.h"
-#include "librbd/AioImageRequest.h"
-#include "librbd/AioImageRequestWQ.h"
-#include "librbd/AioObjectRequest.h"
 #include "librbd/image/CreateRequest.h"
+#include "librbd/io/AioCompletion.h"
+#include "librbd/io/AioImageRequest.h"
+#include "librbd/io/AioImageRequestWQ.h"
+#include "librbd/io/AioObjectRequest.h"
 #include "librbd/DiffIterate.h"
 #include "librbd/ExclusiveLock.h"
 #include "librbd/ImageCtx.h"
@@ -165,6 +165,8 @@ int mirror_image_disable_internal(ImageCtx *ictx, bool force,
 }
 
 } // anonymous namespace
+
+using librbd::io::AioCompletion;
 
   int detect_format(IoCtx &io_ctx, const string &name,
 		    bool *old_format, uint64_t *size)
@@ -1954,9 +1956,9 @@ int mirror_image_disable_internal(ImageCtx *ictx, bool force,
       bufferlist *bl = new bufferlist();
       Context *ctx = new C_CopyRead(&throttle, dest, offset, bl);
       AioCompletion *comp = AioCompletion::create_and_start(ctx, src,
-                                                            AIO_TYPE_READ);
-      AioImageRequest<>::aio_read(src, comp, {{offset, len}}, nullptr, bl,
-                                  fadvise_flags);
+                                                            io::AIO_TYPE_READ);
+      io::AioImageRequest<>::aio_read(src, comp, {{offset, len}}, nullptr, bl,
+                                      fadvise_flags);
       prog_ctx.update_progress(offset, src_size);
     }
 
@@ -2180,8 +2182,9 @@ int mirror_image_disable_internal(ImageCtx *ictx, bool force,
 
       C_SaferCond ctx;
       AioCompletion *c = AioCompletion::create_and_start(&ctx, ictx,
-                                                         AIO_TYPE_READ);
-      AioImageRequest<>::aio_read(ictx, c, {{off, read_len}}, nullptr, &bl, 0);
+                                                         io::AIO_TYPE_READ);
+      io::AioImageRequest<>::aio_read(ictx, c, {{off, read_len}}, nullptr, &bl,
+                                      0);
 
       int ret = ctx.wait();
       if (ret < 0) {

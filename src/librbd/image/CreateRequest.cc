@@ -6,14 +6,14 @@
 #include "common/errno.h"
 #include "cls/rbd/cls_rbd_client.h"
 #include "include/assert.h"
-#include "librbd/Utils.h"
 #include "common/ceph_context.h"
-#include "librbd/AioCompletion.h"
 #include "librbd/Journal.h"
+#include "librbd/Utils.h"
+#include "librbd/io/AioCompletion.h"
 #include "librbd/journal/CreateRequest.h"
 #include "librbd/journal/RemoveRequest.h"
-#include "journal/Journaler.h"
 #include "librbd/MirroringWatcher.h"
+#include "journal/Journaler.h"
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix

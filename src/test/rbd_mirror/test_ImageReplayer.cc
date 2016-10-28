@@ -22,8 +22,6 @@
 #include "cls/rbd/cls_rbd_types.h"
 #include "cls/rbd/cls_rbd_client.h"
 #include "journal/Journaler.h"
-#include "librbd/AioCompletion.h"
-#include "librbd/AioImageRequestWQ.h"
 #include "librbd/ExclusiveLock.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/ImageState.h"
@@ -31,6 +29,8 @@
 #include "librbd/Operations.h"
 #include "librbd/Utils.h"
 #include "librbd/internal.h"
+#include "librbd/io/AioCompletion.h"
+#include "librbd/io/AioImageRequestWQ.h"
 #include "tools/rbd_mirror/types.h"
 #include "tools/rbd_mirror/ImageReplayer.h"
 #include "tools/rbd_mirror/ImageSyncThrottler.h"
@@ -337,7 +337,7 @@ public:
   void flush(librbd::ImageCtx *ictx)
   {
     C_SaferCond aio_flush_ctx;
-    librbd::AioCompletion *c = librbd::AioCompletion::create(&aio_flush_ctx);
+    auto c = librbd::io::AioCompletion::create(&aio_flush_ctx);
     c->get();
     ictx->aio_work_queue->aio_flush(c);
     ASSERT_EQ(0, c->wait_for_complete());

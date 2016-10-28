@@ -1,8 +1,8 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
 
-#ifndef CEPH_LIBRBD_AIO_IMAGE_REQUEST_WQ_H
-#define CEPH_LIBRBD_AIO_IMAGE_REQUEST_WQ_H
+#ifndef CEPH_LIBRBD_IO_AIO_IMAGE_REQUEST_WQ_H
+#define CEPH_LIBRBD_IO_AIO_IMAGE_REQUEST_WQ_H
 
 #include "include/Context.h"
 #include "include/atomic.h"
@@ -12,9 +12,12 @@
 
 namespace librbd {
 
+class ImageCtx;
+
+namespace io {
+
 class AioCompletion;
 template <typename> class AioImageRequest;
-class ImageCtx;
 
 class AioImageRequestWQ : protected ThreadPool::PointerWQ<AioImageRequest<ImageCtx> > {
 public:
@@ -116,6 +119,7 @@ private:
   void handle_blocked_writes(int r);
 };
 
+} // namespace io
 } // namespace librbd
 
-#endif // CEPH_LIBRBD_AIO_IMAGE_REQUEST_WQ_H
+#endif // CEPH_LIBRBD_IO_AIO_IMAGE_REQUEST_WQ_H

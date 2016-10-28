@@ -9,6 +9,7 @@
 class Context;
 
 namespace librbd {
+namespace io {
 
 struct MockAioImageRequestWQ {
   MOCK_METHOD1(block_writes, void(Context *));
@@ -20,6 +21,7 @@ struct MockAioImageRequestWQ {
   MOCK_CONST_METHOD0(is_lock_request_needed, bool());
 };
 
+} // namespace io
 } // namespace librbd
 
 #endif // CEPH_TEST_LIBRBD_MOCK_AIO_IMAGE_REQUEST_WQ_H

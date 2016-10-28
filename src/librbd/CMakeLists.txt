@@ -4,14 +4,9 @@ add_library(rbd_types STATIC
   WatchNotifyTypes.cc)
 
 set(librbd_internal_srcs
-  AioCompletion.cc
-  AioImageRequest.cc
-  AioImageRequestWQ.cc
-  AioObjectRequest.cc
   AsyncObjectThrottle.cc
   AsyncOperation.cc
   AsyncRequest.cc
-  CopyupRequest.cc
   DiffIterate.cc
   ExclusiveLock.cc
   Group.cc
@@ -43,6 +38,11 @@ set(librbd_internal_srcs
   image/SetSnapRequest.cc
   image_watcher/NotifyLockOwner.cc
   image_watcher/RewatchRequest.cc
+  io/AioCompletion.cc
+  io/AioImageRequest.cc
+  io/AioImageRequestWQ.cc
+  io/AioObjectRequest.cc
+  io/CopyupRequest.cc
   journal/RemoveRequest.cc
   journal/CreateRequest.cc
   journal/OpenRequest.cc

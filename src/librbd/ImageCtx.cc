@@ -11,8 +11,6 @@
 #include "common/WorkQueue.h"
 #include "common/Timer.h"
 
-#include "librbd/AioImageRequestWQ.h"
-#include "librbd/AioCompletion.h"
 #include "librbd/AsyncOperation.h"
 #include "librbd/AsyncRequest.h"
 #include "librbd/ExclusiveLock.h"
@@ -30,6 +28,8 @@
 #include "librbd/operation/ResizeRequest.h"
 #include "librbd/Utils.h"
 #include "librbd/LibrbdWriteback.h"
+#include "librbd/io/AioImageRequestWQ.h"
+#include "librbd/io/AioCompletion.h"
 
 #include "osdc/Striper.h"
 #include <boost/bind.hpp>
@@ -198,9 +198,9 @@ struct C_InvalidateCache : public Context {
     memset(&header, 0, sizeof(header));
 
     ThreadPool *thread_pool_singleton = get_thread_pool_instance(cct);
-    aio_work_queue = new AioImageRequestWQ(this, "librbd::aio_work_queue",
-                                           cct->_conf->rbd_op_thread_timeout,
-                                           thread_pool_singleton);
+    aio_work_queue = new io::AioImageRequestWQ(this, "librbd::aio_work_queue",
+                                               cct->_conf->rbd_op_thread_timeout,
+                                               thread_pool_singleton);
     op_work_queue = new ContextWQ("librbd::op_work_queue",
                                   cct->_conf->rbd_op_thread_timeout,
                                   thread_pool_singleton);

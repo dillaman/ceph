@@ -1,20 +1,20 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
 
+#include "librbd/io/CopyupRequest.h"
 #include "common/ceph_context.h"
 #include "common/dout.h"
 #include "common/errno.h"
 #include "common/Mutex.h"
 
-#include "librbd/AioCompletion.h"
-#include "librbd/AioImageRequest.h"
-#include "librbd/AioObjectRequest.h"
 #include "librbd/AsyncObjectThrottle.h"
-#include "librbd/CopyupRequest.h"
 #include "librbd/ExclusiveLock.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/ObjectMap.h"
 #include "librbd/Utils.h"
+#include "librbd/io/AioCompletion.h"
+#include "librbd/io/AioImageRequest.h"
+#include "librbd/io/AioObjectRequest.h"
 
 #include <boost/bind.hpp>
 #include <boost/lambda/bind.hpp>
@@ -25,6 +25,7 @@
 #define dout_prefix *_dout << "librbd::CopyupRequest: "
 
 namespace librbd {
+namespace io {
 
 namespace {
 
@@ -298,4 +299,6 @@ bool CopyupRequest::send_object_map() {
   return false;
 }
 
+} // namespace io
 } // namespace librbd
+

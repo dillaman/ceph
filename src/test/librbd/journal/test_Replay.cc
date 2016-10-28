@@ -8,9 +8,6 @@
 #include "cls/journal/cls_journal_types.h"
 #include "cls/journal/cls_journal_client.h"
 #include "journal/Journaler.h"
-#include "librbd/AioCompletion.h"
-#include "librbd/AioImageRequest.h"
-#include "librbd/AioImageRequestWQ.h"
 #include "librbd/ExclusiveLock.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/ImageState.h"
@@ -18,6 +15,9 @@
 #include "librbd/internal.h"
 #include "librbd/Journal.h"
 #include "librbd/Operations.h"
+#include "librbd/io/AioCompletion.h"
+#include "librbd/io/AioImageRequest.h"
+#include "librbd/io/AioImageRequestWQ.h"
 #include "librbd/journal/Types.h"
 
 void register_test_journal_replay() {
@@ -109,19 +109,19 @@ TEST_F(TestJournalReplay, AioDiscardEvent) {
   ictx->features &= ~RBD_FEATURE_JOURNALING;
 
   std::string payload(4096, '1');
-  librbd::AioCompletion *aio_comp = new librbd::AioCompletion();
+  librbd::io::AioCompletion *aio_comp = new librbd::io::AioCompletion();
   ictx->aio_work_queue->aio_write(aio_comp, 0, payload.size(), payload.c_str(),
                                   0);
   ASSERT_EQ(0, aio_comp->wait_for_complete());
   aio_comp->release();
 
-  aio_comp = new librbd::AioCompletion();
+  aio_comp = new librbd::io::AioCompletion();
   ictx->aio_work_queue->aio_flush(aio_comp);
   ASSERT_EQ(0, aio_comp->wait_for_complete());
   aio_comp->release();
 
   std::string read_payload(4096, '\0');
-  aio_comp = new librbd::AioCompletion();
+  aio_comp = new librbd::io::AioCompletion();
   ictx->aio_work_queue->aio_read(aio_comp, 0, read_payload.size(),
                                  &read_payload[0], NULL, 0);
   ASSERT_EQ(0, aio_comp->wait_for_complete());
@@ -146,7 +146,7 @@ TEST_F(TestJournalReplay, AioDiscardEvent) {
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
   ASSERT_EQ(0, when_acquired_lock(ictx));
 
-  aio_comp = new librbd::AioCompletion();
+  aio_comp = new librbd::io::AioCompletion();
   ictx->aio_work_queue->aio_read(aio_comp, 0, read_payload.size(),
                                  &read_payload[0], NULL, 0);
   ASSERT_EQ(0, aio_comp->wait_for_complete());
@@ -178,7 +178,7 @@ TEST_F(TestJournalReplay, AioDiscardEvent) {
   ASSERT_EQ(1, current_entry);
 
   // verify lock ordering constraints
-  aio_comp = new librbd::AioCompletion();
+  aio_comp = new librbd::io::AioCompletion();
   ictx->aio_work_queue->aio_discard(aio_comp, 0, read_payload.size());
   ASSERT_EQ(0, aio_comp->wait_for_complete());
   aio_comp->release();
@@ -209,7 +209,7 @@ TEST_F(TestJournalReplay, AioWriteEvent) {
   ASSERT_EQ(0, when_acquired_lock(ictx));
 
   std::string read_payload(4096, '\0');
-  librbd::AioCompletion *aio_comp = new librbd::AioCompletion();
+  librbd::io::AioCompletion *aio_comp = new librbd::io::AioCompletion();
   ictx->aio_work_queue->aio_read(aio_comp, 0, read_payload.size(),
                                  &read_payload[0], NULL, 0);
   ASSERT_EQ(0, aio_comp->wait_for_complete());
@@ -237,7 +237,7 @@ TEST_F(TestJournalReplay, AioWriteEvent) {
   ASSERT_EQ(1, current_entry);
 
   // verify lock ordering constraints
-  aio_comp = new librbd::AioCompletion();
+  aio_comp = new librbd::io::AioCompletion();
   ictx->aio_work_queue->aio_write(aio_comp, 0, payload.size(), payload.c_str(),
                                   0);
   ASSERT_EQ(0, aio_comp->wait_for_complete());
@@ -284,7 +284,7 @@ TEST_F(TestJournalReplay, AioFlushEvent) {
   ASSERT_EQ(1, current_entry);
 
   // verify lock ordering constraints
-  librbd::AioCompletion *aio_comp = new librbd::AioCompletion();
+  librbd::io::AioCompletion *aio_comp = new librbd::io::AioCompletion();
   ictx->aio_work_queue->aio_flush(aio_comp);
   ASSERT_EQ(0, aio_comp->wait_for_complete());
   aio_comp->release();
@@ -782,13 +782,13 @@ TEST_F(TestJournalReplay, ObjectPosition) {
   get_journal_commit_position(ictx, &initial_tag, &initial_entry);
 
   std::string payload(4096, '1');
-  librbd::AioCompletion *aio_comp = new librbd::AioCompletion();
+  librbd::io::AioCompletion *aio_comp = new librbd::io::AioCompletion();
   ictx->aio_work_queue->aio_write(aio_comp, 0, payload.size(), payload.c_str(),
                                   0);
   ASSERT_EQ(0, aio_comp->wait_for_complete());
   aio_comp->release();
 
-  aio_comp = new librbd::AioCompletion();
+  aio_comp = new librbd::io::AioCompletion();
   ictx->aio_work_queue->aio_flush(aio_comp);
   ASSERT_EQ(0, aio_comp->wait_for_complete());
   aio_comp->release();
@@ -802,13 +802,13 @@ TEST_F(TestJournalReplay, ObjectPosition) {
 
   // write again
 
-  aio_comp = new librbd::AioCompletion();
+  aio_comp = new librbd::io::AioCompletion();
   ictx->aio_work_queue->aio_write(aio_comp, 0, payload.size(), payload.c_str(),
                                   0);
   ASSERT_EQ(0, aio_comp->wait_for_complete());
   aio_comp->release();
 
-  aio_comp = new librbd::AioCompletion();
+  aio_comp = new librbd::io::AioCompletion();
   ictx->aio_work_queue->aio_flush(aio_comp);
   ASSERT_EQ(0, aio_comp->wait_for_complete());
   aio_comp->release();

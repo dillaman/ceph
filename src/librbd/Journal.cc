@@ -2,13 +2,15 @@
 // vim: ts=8 sw=2 smarttab
 
 #include "librbd/Journal.h"
-#include "librbd/AioImageRequestWQ.h"
-#include "librbd/AioObjectRequest.h"
 #include "librbd/ExclusiveLock.h"
 #include "librbd/ImageCtx.h"
+#include "librbd/io/AioImageRequestWQ.h"
+#include "librbd/io/AioObjectRequest.h"
 #include "librbd/journal/OpenRequest.h"
 #include "librbd/journal/PromoteRequest.h"
+#include "librbd/journal/RemoveRequest.h"
 #include "librbd/journal/Replay.h"
+#include "librbd/journal/CreateRequest.h"
 #include "cls/journal/cls_journal_types.h"
 #include "journal/Journaler.h"
 #include "journal/Policy.h"
@@ -19,8 +21,6 @@
 #include "common/Timer.h"
 #include "common/WorkQueue.h"
 #include "include/rados/librados.hpp"
-#include "librbd/journal/RemoveRequest.h"
-#include "librbd/journal/CreateRequest.h"
 
 #include <boost/scope_exit.hpp>
 #include <utility>

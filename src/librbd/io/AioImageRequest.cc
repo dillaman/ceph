@@ -1,14 +1,14 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
 
-#include "librbd/AioImageRequest.h"
-#include "librbd/AioCompletion.h"
-#include "librbd/AioObjectRequest.h"
+#include "librbd/io/AioImageRequest.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/internal.h"
 #include "librbd/Journal.h"
 #include "librbd/Utils.h"
 #include "librbd/cache/ImageCache.h"
+#include "librbd/io/AioCompletion.h"
+#include "librbd/io/AioObjectRequest.h"
 #include "librbd/journal/Types.h"
 #include "include/rados/librados.hpp"
 #include "common/WorkQueue.h"
@@ -21,6 +21,8 @@
 namespace librbd {
 
 using util::get_image_ctx;
+
+namespace io {
 
 namespace {
 
@@ -724,10 +726,12 @@ void AioImageFlush<I>::send_image_cache_request() {
   image_ctx.image_cache->aio_flush(req_comp);
 }
 
+} // namespace io
 } // namespace librbd
 
-template class librbd::AioImageRequest<librbd::ImageCtx>;
-template class librbd::AbstractAioImageWrite<librbd::ImageCtx>;
-template class librbd::AioImageWrite<librbd::ImageCtx>;
-template class librbd::AioImageDiscard<librbd::ImageCtx>;
-template class librbd::AioImageFlush<librbd::ImageCtx>;
+template class librbd::io::AioImageRequest<librbd::ImageCtx>;
+template class librbd::io::AbstractAioImageWrite<librbd::ImageCtx>;
+template class librbd::io::AioImageWrite<librbd::ImageCtx>;
+template class librbd::io::AioImageDiscard<librbd::ImageCtx>;
+template class librbd::io::AioImageFlush<librbd::ImageCtx>;
+

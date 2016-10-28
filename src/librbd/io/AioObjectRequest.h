@@ -1,8 +1,8 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
 
-#ifndef CEPH_LIBRBD_AIO_OBJECT_REQUEST_H
-#define CEPH_LIBRBD_AIO_OBJECT_REQUEST_H
+#ifndef CEPH_LIBRBD_IO_AIO_OBJECT_REQUEST_H
+#define CEPH_LIBRBD_IO_AIO_OBJECT_REQUEST_H
 
 #include "include/int_types.h"
 
@@ -17,12 +17,15 @@ class Context;
 
 namespace librbd {
 
+struct ImageCtx;
+
+namespace io {
+
 struct AioCompletion;
 class AioObjectRemove;
 class AioObjectTruncate;
 class AioObjectWrite;
 class AioObjectZero;
-struct ImageCtx;
 class CopyupRequest;
 
 struct AioObjectRequestHandle {
@@ -337,7 +340,9 @@ public:
                 const ::SnapContext &snapc, Context *completion,
                 bool post_object_map_update)
     : AbstractAioObjectWrite(ictx, oid, object_no, 0, 0, snapc, completion,
-                             true), m_post_object_map_update(post_object_map_update) { }
+                             true),
+      m_post_object_map_update(post_object_map_update) {
+  }
 
 protected:
   virtual void add_write_ops(librados::ObjectWriteOperation *wr) {
@@ -410,9 +415,11 @@ protected:
   }
 };
 
+} // namespace io
 } // namespace librbd
 
-extern template class librbd::AioObjectRequest<librbd::ImageCtx>;
-extern template class librbd::AioObjectRead<librbd::ImageCtx>;
+extern template class librbd::io::AioObjectRequest<librbd::ImageCtx>;
+extern template class librbd::io::AioObjectRead<librbd::ImageCtx>;
 
-#endif // CEPH_LIBRBD_AIO_OBJECT_REQUEST_H
+#endif // CEPH_LIBRBD_IO_AIO_OBJECT_REQUEST_H
+

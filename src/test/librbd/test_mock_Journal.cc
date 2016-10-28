@@ -10,10 +10,10 @@
 #include "common/Mutex.h"
 #include "cls/journal/cls_journal_types.h"
 #include "journal/Journaler.h"
-#include "librbd/AioCompletion.h"
-#include "librbd/AioObjectRequest.h"
 #include "librbd/Journal.h"
 #include "librbd/Utils.h"
+#include "librbd/io/AioCompletion.h"
+#include "librbd/io/AioObjectRequest.h"
 #include "librbd/journal/Replay.h"
 #include "librbd/journal/RemoveRequest.h"
 #include "librbd/journal/CreateRequest.h"
@@ -410,7 +410,7 @@ public:
 
   uint64_t when_append_io_event(MockJournalImageCtx &mock_image_ctx,
                                 MockJournal &mock_journal,
-                                AioObjectRequest<> *object_request = nullptr) {
+                                io::AioObjectRequest<> *object_request = nullptr) {
     RWLock::RLocker owner_locker(mock_image_ctx.owner_lock);
     MockJournal::AioObjectRequests object_requests;
     if (object_request != nullptr) {
@@ -1002,7 +1002,7 @@ TEST_F(TestMockJournal, EventCommitError) {
   };
 
   C_SaferCond object_request_ctx;
-  AioObjectRemove *object_request = new AioObjectRemove(
+  io::AioObjectRemove *object_request = new io::AioObjectRemove(
     ictx, "oid", 0, {}, &object_request_ctx);
 
   ::journal::MockFuture mock_future;
@@ -1043,7 +1043,7 @@ TEST_F(TestMockJournal, EventCommitErrorWithPendingWriteback) {
   };
 
   C_SaferCond object_request_ctx;
-  AioObjectRemove *object_request = new AioObjectRemove(
+  io::AioObjectRemove *object_request = new io::AioObjectRemove(
     ictx, "oid", 0, {}, &object_request_ctx);
 
   ::journal::MockFuture mock_future;

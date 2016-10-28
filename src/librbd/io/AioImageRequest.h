@@ -8,16 +8,19 @@
 #include "include/buffer_fwd.h"
 #include "common/snap_types.h"
 #include "osd/osd_types.h"
-#include "librbd/AioCompletion.h"
+#include "librbd/io/AioCompletion.h"
 #include <list>
 #include <utility>
 #include <vector>
 
 namespace librbd {
 
+class ImageCtx;
+
+namespace io {
+
 class AioCompletion;
 class AioObjectRequestHandle;
-class ImageCtx;
 
 template <typename ImageCtxT = ImageCtx>
 class AioImageRequest {
@@ -265,12 +268,13 @@ protected:
   }
 };
 
+} // namespace io
 } // namespace librbd
 
-extern template class librbd::AioImageRequest<librbd::ImageCtx>;
-extern template class librbd::AbstractAioImageWrite<librbd::ImageCtx>;
-extern template class librbd::AioImageWrite<librbd::ImageCtx>;
-extern template class librbd::AioImageDiscard<librbd::ImageCtx>;
-extern template class librbd::AioImageFlush<librbd::ImageCtx>;
+extern template class librbd::io::AioImageRequest<librbd::ImageCtx>;
+extern template class librbd::io::AbstractAioImageWrite<librbd::ImageCtx>;
+extern template class librbd::io::AioImageWrite<librbd::ImageCtx>;
+extern template class librbd::io::AioImageDiscard<librbd::ImageCtx>;
+extern template class librbd::io::AioImageFlush<librbd::ImageCtx>;
 
 #endif // CEPH_LIBRBD_AIO_IMAGE_REQUEST_H

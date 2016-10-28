@@ -3,15 +3,15 @@
 #include "cls/rbd/cls_rbd_types.h"
 #include "test/librbd/test_fixture.h"
 #include "test/librbd/test_support.h"
-#include "librbd/AioCompletion.h"
-#include "librbd/AioImageRequest.h"
-#include "librbd/AioImageRequestWQ.h"
 #include "librbd/ExclusiveLock.h"
 #include "librbd/ImageState.h"
 #include "librbd/ImageWatcher.h"
 #include "librbd/internal.h"
 #include "librbd/ObjectMap.h"
 #include "librbd/Operations.h"
+#include "librbd/io/AioCompletion.h"
+#include "librbd/io/AioImageRequest.h"
+#include "librbd/io/AioImageRequestWQ.h"
 #include <boost/scope_exit.hpp>
 #include <boost/assign/list_of.hpp>
 #include <utility>
@@ -272,7 +272,7 @@ TEST_F(TestInternal, AioWriteRequestsLock) {
 
   std::string buffer(256, '1');
   Context *ctx = new DummyContext();
-  librbd::AioCompletion *c = librbd::AioCompletion::create(ctx);
+  librbd::io::AioCompletion *c = librbd::io::AioCompletion::create(ctx);
   c->get();
   ictx->aio_work_queue->aio_write(c, 0, buffer.size(), buffer.c_str(), 0);
 
@@ -294,7 +294,7 @@ TEST_F(TestInternal, AioDiscardRequestsLock) {
   ASSERT_EQ(0, lock_image(*ictx, LOCK_EXCLUSIVE, "manually locked"));
 
   Context *ctx = new DummyContext();
-  librbd::AioCompletion *c = librbd::AioCompletion::create(ctx);
+  librbd::io::AioCompletion *c = librbd::io::AioCompletion::create(ctx);
   c->get();
   ictx->aio_work_queue->aio_discard(c, 0, 256);
 
@@ -698,7 +698,7 @@ TEST_F(TestInternal, ShrinkFlushesCache) {
   ictx->aio_work_queue->write(0, buffer.size(), buffer.c_str(), 0);
 
   C_SaferCond cond_ctx;
-  librbd::AioCompletion *c = librbd::AioCompletion::create(&cond_ctx);
+  librbd::io::AioCompletion *c = librbd::io::AioCompletion::create(&cond_ctx);
   c->get();
   ictx->aio_work_queue->aio_write(c, 0, buffer.size(), buffer.c_str(), 0);
 

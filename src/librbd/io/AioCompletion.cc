@@ -3,6 +3,7 @@
 
 #include <errno.h>
 
+#include "librbd/io/AioCompletion.h"
 #include "common/ceph_context.h"
 #include "common/dout.h"
 #include "common/errno.h"
@@ -12,7 +13,6 @@
 #include "librbd/ImageCtx.h"
 #include "librbd/internal.h"
 
-#include "librbd/AioCompletion.h"
 #include "librbd/Journal.h"
 
 #ifdef WITH_LTTNG
@@ -26,6 +26,7 @@
 #define dout_prefix *_dout << "librbd::AioCompletion: "
 
 namespace librbd {
+namespace io {
 
 int AioCompletion::wait_for_complete() {
   tracepoint(librbd, aio_wait_for_complete_enter, this);
@@ -221,4 +222,6 @@ ssize_t AioCompletion::get_return_value() {
   return r;
 }
 
+} // namespace io
 } // namespace librbd
+

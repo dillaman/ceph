@@ -1,8 +1,8 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
 
-#ifndef CEPH_LIBRBD_AIO_COMPLETION_H
-#define CEPH_LIBRBD_AIO_COMPLETION_H
+#ifndef CEPH_LIBRBD_IO_AIO_COMPLETION_H
+#define CEPH_LIBRBD_IO_AIO_COMPLETION_H
 
 #include "common/Cond.h"
 #include "common/Mutex.h"
@@ -18,6 +18,7 @@
 class CephContext;
 
 namespace librbd {
+namespace io {
 
 typedef enum {
   AIO_TYPE_NONE = 0,
@@ -233,6 +234,7 @@ protected:
   AioCompletion *m_completion;
 };
 
+} // namespace io
 } // namespace librbd
 
-#endif // CEPH_LIBRBD_AIO_COMPLETION_H
+#endif // CEPH_LIBRBD_IO_AIO_COMPLETION_H
