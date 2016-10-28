@@ -13,12 +13,12 @@
 #include "librbd/AsyncOperation.h"
 #include "librbd/ImageCtx.h"
 
-#include "osdc/Striper.h"
-
 class CephContext;
 
 namespace librbd {
 namespace io {
+
+struct ReadResult;
 
 typedef enum {
   AIO_TYPE_NONE = 0,
@@ -65,10 +65,7 @@ struct AioCompletion {
   utime_t start_time;
   aio_type_t aio_type;
 
-  Striper::StripedReadResult destriper;
-  bufferlist *read_bl;
-  char *read_buf;
-  size_t read_buf_len;
+  io::ReadResult *read_result = nullptr;
 
   AsyncOperation async_op;
 
@@ -115,12 +112,10 @@ struct AioCompletion {
                     pending_count(0), blockers(1),
                     ref(1), released(false), ictx(NULL),
                     aio_type(AIO_TYPE_NONE),
-                    read_bl(NULL), read_buf(NULL), read_buf_len(0),
                     journal_tid(0), m_xlist_item(this), event_notify(false) {
   }
 
-  ~AioCompletion() {
-  }
+  ~AioCompletion();
 
   int wait_for_complete();
 

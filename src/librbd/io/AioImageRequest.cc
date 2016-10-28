@@ -9,6 +9,7 @@
 #include "librbd/cache/ImageCache.h"
 #include "librbd/io/AioCompletion.h"
 #include "librbd/io/AioObjectRequest.h"
+#include "librbd/io/ReadResult.h"
 #include "librbd/journal/Types.h"
 #include "include/rados/librados.hpp"
 #include "common/WorkQueue.h"
@@ -79,84 +80,6 @@ struct C_FlushJournalCommit : public Context {
                    << dendl;
     aio_comp->complete_request(r);
   }
-};
-
-template <typename ImageCtxT>
-class C_AioRead : public C_AioRequest {
-public:
-  C_AioRead(AioCompletion *completion)
-    : C_AioRequest(completion), m_req(nullptr) {
-  }
-
-  virtual void finish(int r) {
-    m_completion->lock.Lock();
-    CephContext *cct = m_completion->ictx->cct;
-    ldout(cct, 10) << "C_AioRead::finish() " << this << " r = " << r << dendl;
-
-    if (r >= 0 || r == -ENOENT) { // this was a sparse_read operation
-      ldout(cct, 10) << " got " << m_req->get_extent_map()
-                     << " for " << m_req->get_buffer_extents()
-                     << " bl " << m_req->data().length() << dendl;
-      // reads from the parent don't populate the m_ext_map and the overlap
-      // may not be the full buffer.  compensate here by filling in m_ext_map
-      // with the read extent when it is empty.
-      if (m_req->get_extent_map().empty()) {
-        m_req->get_extent_map()[m_req->get_offset()] = m_req->data().length();
-      }
-
-      m_completion->destriper.add_partial_sparse_result(
-          cct, m_req->data(), m_req->get_extent_map(), m_req->get_offset(),
-          m_req->get_buffer_extents());
-      r = m_req->get_length();
-    }
-    m_completion->lock.Unlock();
-
-    C_AioRequest::finish(r);
-  }
-
-  void set_req(AioObjectRead<ImageCtxT> *req) {
-    m_req = req;
-  }
-private:
-  AioObjectRead<ImageCtxT> *m_req;
-};
-
-template <typename ImageCtxT>
-class C_ImageCacheRead : public C_AioRequest {
-public:
-  typedef std::vector<std::pair<uint64_t,uint64_t> > Extents;
-
-  C_ImageCacheRead(AioCompletion *completion, const Extents &image_extents)
-    : C_AioRequest(completion), m_image_extents(image_extents) {
-  }
-
-  inline bufferlist &get_data() {
-    return m_bl;
-  }
-
-protected:
-  virtual void finish(int r) {
-    CephContext *cct = m_completion->ictx->cct;
-    ldout(cct, 10) << "C_ImageCacheRead::finish() " << this << ": r=" << r
-                   << dendl;
-    if (r >= 0) {
-      size_t length = 0;
-      for (auto &image_extent : m_image_extents) {
-        length += image_extent.second;
-      }
-      assert(length == m_bl.length());
-
-      m_completion->lock.Lock();
-      m_completion->destriper.add_partial_result(cct, m_bl, m_image_extents);
-      m_completion->lock.Unlock();
-      r = length;
-    }
-    C_AioRequest::finish(r);
-  }
-
-private:
-  bufferlist m_bl;
-  Extents m_image_extents;
 };
 
 template <typename ImageCtxT>
@@ -307,9 +230,11 @@ void AioImageRead<I>::send_request() {
     }
   }
 
-  aio_comp->read_buf = m_buf;
-  aio_comp->read_buf_len = buffer_ofs;
-  aio_comp->read_bl = m_pbl;
+  if (m_pbl != nullptr) {
+    aio_comp->read_result = new io::ReadResult(m_pbl);
+  } else if (m_buf != nullptr) {
+    aio_comp->read_result = new io::ReadResult(m_buf, buffer_ofs);
+  }
 
   // pre-calculate the expected number of read requests
   uint32_t request_count = 0;
@@ -325,12 +250,13 @@ void AioImageRead<I>::send_request() {
                      << extent.length << " from " << extent.buffer_extents
                      << dendl;
 
-      C_AioRead<I> *req_comp = new C_AioRead<I>(aio_comp);
+      auto req_comp = new io::ReadResult::C_SparseReadRequest<I>(
+        aio_comp);
       AioObjectRead<I> *req = AioObjectRead<I>::create(
         &image_ctx, extent.oid.name, extent.objectno, extent.offset,
         extent.length, extent.buffer_extents, snap_id, true, req_comp,
         m_op_flags);
-      req_comp->set_req(req);
+      req_comp->request = req;
 
       if (image_ctx.object_cacher) {
         C_ObjectCacheRead<I> *cache_comp = new C_ObjectCacheRead<I>(image_ctx,
@@ -357,10 +283,10 @@ void AioImageRead<I>::send_image_cache_request() {
 
   AioCompletion *aio_comp = this->m_aio_comp;
   aio_comp->set_request_count(1);
-  C_ImageCacheRead<I> *req_comp = new C_ImageCacheRead<I>(
+  auto *req_comp = new io::ReadResult::C_ImageReadRequest(
     aio_comp, this->m_image_extents);
   image_ctx.image_cache->aio_read(std::move(this->m_image_extents),
-                                  &req_comp->get_data(), m_op_flags,
+                                  &req_comp->bl, m_op_flags,
                                   req_comp);
 }
 
