@@ -336,7 +336,7 @@ void Replay<I>::handle_event(const journal::AioWriteEvent &event,
                                                              io::AIO_TYPE_WRITE,
                                                              &flush_required);
   io::AioImageRequest<I>::aio_write(&m_image_ctx, aio_comp, event.offset,
-                                    event.length, data.c_str(), 0);
+                                    event.length, data, 0);
   if (flush_required) {
     m_lock.Lock();
     io::AioCompletion *flush_comp = create_aio_flush_completion(nullptr);

@@ -20,10 +20,9 @@
 #define dout_prefix *_dout << "librbd::AioImageRequest: "
 
 namespace librbd {
+namespace io {
 
 using util::get_image_ctx;
-
-namespace io {
 
 namespace {
 
@@ -114,16 +113,18 @@ private:
 
 template <typename I>
 void AioImageRequest<I>::aio_read(I *ictx, AioCompletion *c,
-                                  Extents &&image_extents, char *buf,
-                                  bufferlist *pbl, int op_flags) {
-  AioImageRead<I> req(*ictx, c, std::move(image_extents), buf, pbl, op_flags);
+                                  Extents &&image_extents,
+                                  ReadResult *read_result, int op_flags) {
+  AioImageRead<I> req(*ictx, c, std::move(image_extents), read_result,
+                      op_flags);
   req.send();
 }
 
 template <typename I>
 void AioImageRequest<I>::aio_write(I *ictx, AioCompletion *c, uint64_t off,
-                                   size_t len, const char *buf, int op_flags) {
-  AioImageWrite<I> req(*ictx, c, off, len, buf, op_flags);
+                                   size_t len, const bufferlist &bl,
+                                   int op_flags) {
+  AioImageWrite<I> req(*ictx, c, off, len, bl, op_flags);
   req.send();
 }
 
@@ -230,10 +231,8 @@ void AioImageRead<I>::send_request() {
     }
   }
 
-  if (m_pbl != nullptr) {
-    aio_comp->read_result = new io::ReadResult(m_pbl);
-  } else if (m_buf != nullptr) {
-    aio_comp->read_result = new io::ReadResult(m_buf, buffer_ofs);
+  if (aio_comp->read_result != nullptr) {
+    aio_comp->read_result->set_clip_length(buffer_ofs);
   }
 
   // pre-calculate the expected number of read requests
@@ -250,8 +249,7 @@ void AioImageRead<I>::send_request() {
                      << extent.length << " from " << extent.buffer_extents
                      << dendl;
 
-      auto req_comp = new io::ReadResult::C_SparseReadRequest<I>(
-        aio_comp);
+      auto req_comp = new ReadResult::C_SparseReadRequest<I>(aio_comp);
       AioObjectRead<I> *req = AioObjectRead<I>::create(
         &image_ctx, extent.oid.name, extent.objectno, extent.offset,
         extent.length, extent.buffer_extents, snap_id, true, req_comp,
@@ -283,8 +281,8 @@ void AioImageRead<I>::send_image_cache_request() {
 
   AioCompletion *aio_comp = this->m_aio_comp;
   aio_comp->set_request_count(1);
-  auto *req_comp = new io::ReadResult::C_ImageReadRequest(
-    aio_comp, this->m_image_extents);
+  auto *req_comp = new ReadResult::C_ImageReadRequest(aio_comp,
+                                                      this->m_image_extents);
   image_ctx.image_cache->aio_read(std::move(this->m_image_extents),
                                   &req_comp->bl, m_op_flags,
                                   req_comp);

@@ -15,6 +15,7 @@
 #include "librbd/io/AioCompletion.h"
 #include "librbd/io/AioImageRequest.h"
 #include "librbd/io/AioObjectRequest.h"
+#include "librbd/io/ReadResult.h"
 
 #include <boost/bind.hpp>
 #include <boost/lambda/bind.hpp>
@@ -189,7 +190,7 @@ void CopyupRequest::send()
                          << ", extents " << m_image_extents
                          << dendl;
   AioImageRequest<>::aio_read(m_ictx->parent, comp, std::move(m_image_extents),
-                              nullptr, &m_copyup_data, 0);
+                              new ReadResult(&m_copyup_data), 0);
 }
 
 void CopyupRequest::complete(int r)

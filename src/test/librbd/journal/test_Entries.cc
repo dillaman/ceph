@@ -125,11 +125,12 @@ TEST_F(TestJournalEntries, AioWrite) {
   journal::Journaler *journaler = create_journaler(ictx);
   ASSERT_TRUE(journaler != NULL);
 
-  std::string buffer(512, '1');
+  bufferlist buffer_bl;
+  buffer_bl.append(std::string(512, '1'));
   C_SaferCond cond_ctx;
   librbd::io::AioCompletion *c = librbd::io::AioCompletion::create(&cond_ctx);
   c->get();
-  ictx->aio_work_queue->aio_write(c, 123, buffer.size(), buffer.c_str(), 0);
+  ictx->aio_work_queue->aio_write(c, 123, buffer_bl.length(), buffer_bl, 0);
   ASSERT_EQ(0, c->wait_for_complete());
   c->put();
 
@@ -147,12 +148,8 @@ TEST_F(TestJournalEntries, AioWrite) {
   librbd::journal::AioWriteEvent aio_write_event =
     boost::get<librbd::journal::AioWriteEvent>(event_entry.event);
   ASSERT_EQ(123U, aio_write_event.offset);
-  ASSERT_EQ(buffer.size(), aio_write_event.length);
-
-  bufferlist buffer_bl;
-  buffer_bl.append(buffer);
+  ASSERT_EQ(buffer_bl.length(), aio_write_event.length);
   ASSERT_TRUE(aio_write_event.data.contents_equal(buffer_bl));
-
   ASSERT_EQ(librbd::journal::AioWriteEvent::get_fixed_size() +
               aio_write_event.data.length(), replay_entry.get_data().length());
 }

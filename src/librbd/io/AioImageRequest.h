@@ -1,8 +1,8 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
 
-#ifndef CEPH_LIBRBD_AIO_IMAGE_REQUEST_H
-#define CEPH_LIBRBD_AIO_IMAGE_REQUEST_H
+#ifndef CEPH_LIBRBD_IO_AIO_IMAGE_REQUEST_H
+#define CEPH_LIBRBD_IO_AIO_IMAGE_REQUEST_H
 
 #include "include/int_types.h"
 #include "include/buffer_fwd.h"
@@ -21,6 +21,7 @@ namespace io {
 
 class AioCompletion;
 class AioObjectRequestHandle;
+class ReadResult;
 
 template <typename ImageCtxT = ImageCtx>
 class AioImageRequest {
@@ -30,10 +31,10 @@ public:
   virtual ~AioImageRequest() {}
 
   static void aio_read(ImageCtxT *ictx, AioCompletion *c,
-                       Extents &&image_extents, char *buf, bufferlist *pbl,
+                       Extents &&image_extents, ReadResult *read_result,
                        int op_flags);
   static void aio_write(ImageCtxT *ictx, AioCompletion *c, uint64_t off,
-                        size_t len, const char *buf, int op_flags);
+                        size_t len, const bufferlist &bl, int op_flags);
   static void aio_write(ImageCtxT *ictx, AioCompletion *c,
                         Extents &&image_extents, bufferlist &&bl, int op_flags);
   static void aio_discard(ImageCtxT *ictx, AioCompletion *c, uint64_t off,
@@ -83,10 +84,11 @@ public:
   using typename AioImageRequest<ImageCtxT>::Extents;
 
   AioImageRead(ImageCtxT &image_ctx, AioCompletion *aio_comp,
-               Extents &&image_extents, char *buf, bufferlist *pbl,
+               Extents &&image_extents, ReadResult *read_result,
                int op_flags)
     : AioImageRequest<ImageCtxT>(image_ctx, aio_comp, std::move(image_extents)),
-      m_buf(buf), m_pbl(pbl), m_op_flags(op_flags) {
+      m_op_flags(op_flags) {
+    aio_comp->read_result = read_result;
   }
 
 protected:
@@ -100,8 +102,6 @@ protected:
     return "aio_read";
   }
 private:
-  char *m_buf;
-  bufferlist *m_pbl;
   int m_op_flags;
 };
 
@@ -159,10 +159,9 @@ public:
   using typename AioImageRequest<ImageCtxT>::Extents;
 
   AioImageWrite(ImageCtxT &image_ctx, AioCompletion *aio_comp, uint64_t off,
-                size_t len, const char *buf, int op_flags)
+                size_t len, const bufferlist &bl, int op_flags)
     : AbstractAioImageWrite<ImageCtxT>(image_ctx, aio_comp, {{off, len}}),
-      m_op_flags(op_flags) {
-    m_bl.append(buf, len);
+      m_bl(bl), m_op_flags(op_flags) {
   }
   AioImageWrite(ImageCtxT &image_ctx, AioCompletion *aio_comp,
                 Extents &&image_extents, bufferlist &&bl, int op_flags)
@@ -277,4 +276,5 @@ extern template class librbd::io::AioImageWrite<librbd::ImageCtx>;
 extern template class librbd::io::AioImageDiscard<librbd::ImageCtx>;
 extern template class librbd::io::AioImageFlush<librbd::ImageCtx>;
 
-#endif // CEPH_LIBRBD_AIO_IMAGE_REQUEST_H
+#endif // CEPH_LIBRBD_IO_AIO_IMAGE_REQUEST_H
+

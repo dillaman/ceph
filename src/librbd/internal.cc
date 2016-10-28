@@ -26,6 +26,7 @@
 #include "librbd/io/AioImageRequest.h"
 #include "librbd/io/AioImageRequestWQ.h"
 #include "librbd/io/AioObjectRequest.h"
+#include "librbd/io/ReadResult.h"
 #include "librbd/DiffIterate.h"
 #include "librbd/ExclusiveLock.h"
 #include "librbd/ImageCtx.h"
@@ -1900,8 +1901,7 @@ using librbd::io::AioCompletion;
       AioCompletion *comp = AioCompletion::create(ctx);
 
       // coordinate through AIO WQ to ensure lock is acquired if needed
-      m_dest->aio_work_queue->aio_write(comp, m_offset, m_bl->length(),
-                                        m_bl->c_str(),
+      m_dest->aio_work_queue->aio_write(comp, m_offset, m_bl->length(), *m_bl,
                                         LIBRADOS_OP_FLAG_FADVISE_DONTNEED);
     }
 
@@ -1957,8 +1957,8 @@ using librbd::io::AioCompletion;
       Context *ctx = new C_CopyRead(&throttle, dest, offset, bl);
       AioCompletion *comp = AioCompletion::create_and_start(ctx, src,
                                                             io::AIO_TYPE_READ);
-      io::AioImageRequest<>::aio_read(src, comp, {{offset, len}}, nullptr, bl,
-                                      fadvise_flags);
+      io::AioImageRequest<>::aio_read(src, comp, {{offset, len}},
+                                      new io::ReadResult(bl), fadvise_flags);
       prog_ctx.update_progress(offset, src_size);
     }
 
@@ -2183,8 +2183,8 @@ using librbd::io::AioCompletion;
       C_SaferCond ctx;
       AioCompletion *c = AioCompletion::create_and_start(&ctx, ictx,
                                                          io::AIO_TYPE_READ);
-      io::AioImageRequest<>::aio_read(ictx, c, {{off, read_len}}, nullptr, &bl,
-                                      0);
+      io::AioImageRequest<>::aio_read(ictx, c, {{off, read_len}},
+                                      new io::ReadResult(&bl), 0);
 
       int ret = ctx.wait();
       if (ret < 0) {
