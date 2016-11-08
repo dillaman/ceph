@@ -120,7 +120,7 @@ protected:
   using typename AioImageRequest<ImageCtxT>::AioObjectRequests;
   using typename AioImageRequest<ImageCtxT>::Extents;
 
-  typedef std::vector<ObjectExtent> ObjectExtents;
+  typedef std::vector<::ObjectExtent> ObjectExtents;
 
   AbstractAioImageWrite(ImageCtxT &image_ctx, AioCompletion *aio_comp,
                         Extents &&image_extents)
@@ -142,7 +142,7 @@ protected:
                                     const ::SnapContext &snapc,
                                     AioObjectRequests *aio_object_requests);
   virtual AioObjectRequestHandle *create_object_request(
-      const ObjectExtent &object_extent, const ::SnapContext &snapc,
+      const ::ObjectExtent &object_extent, const ::SnapContext &snapc,
       Context *on_finish) = 0;
 
   virtual uint64_t append_journal_event(const AioObjectRequests &requests,
@@ -181,7 +181,7 @@ protected:
     return "aio_write";
   }
 
-  void assemble_extent(const ObjectExtent &object_extent, bufferlist *bl);
+  void assemble_extent(const ::ObjectExtent &object_extent, bufferlist *bl);
 
   virtual void send_image_cache_request() override;
 
@@ -192,7 +192,7 @@ protected:
                                     const ::SnapContext &snapc,
                                     AioObjectRequests *aio_object_requests);
   virtual AioObjectRequestHandle *create_object_request(
-      const ObjectExtent &object_extent, const ::SnapContext &snapc,
+      const ::ObjectExtent &object_extent, const ::SnapContext &snapc,
       Context *on_finish);
 
   virtual uint64_t append_journal_event(const AioObjectRequests &requests,
@@ -231,7 +231,7 @@ protected:
                                           uint64_t journal_tid);
 
   virtual AioObjectRequestHandle *create_object_request(
-      const ObjectExtent &object_extent, const ::SnapContext &snapc,
+      const ::ObjectExtent &object_extent, const ::SnapContext &snapc,
       Context *on_finish);
 
   virtual uint64_t append_journal_event(const AioObjectRequests &requests,

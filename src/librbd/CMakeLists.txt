@@ -44,6 +44,8 @@ set(librbd_internal_srcs
   io/AioObjectRequest.cc
   io/CopyupRequest.cc
   io/ReadResult.cc
+  io/Types.cc
+  io/Utils.cc
   journal/RemoveRequest.cc
   journal/CreateRequest.cc
   journal/OpenRequest.cc

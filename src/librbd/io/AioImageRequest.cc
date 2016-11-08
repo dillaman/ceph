@@ -28,7 +28,7 @@ namespace {
 
 template <typename ImageCtxT = ImageCtx>
 struct C_DiscardJournalCommit : public Context {
-  typedef std::vector<ObjectExtent> ObjectExtents;
+  typedef std::vector<::ObjectExtent> ObjectExtents;
 
   ImageCtxT &image_ctx;
   AioCompletion *aio_comp;
@@ -210,7 +210,7 @@ void AioImageRead<I>::send_request() {
 
   AioCompletion *aio_comp = this->m_aio_comp;
   librados::snap_t snap_id;
-  map<object_t,vector<ObjectExtent> > object_extents;
+  map<object_t,vector<::ObjectExtent> > object_extents;
   uint64_t buffer_ofs = 0;
   {
     // prevent image size from changing between computing clip and recording
@@ -383,7 +383,7 @@ void AbstractAioImageWrite<I>::send_object_requests(
 }
 
 template <typename I>
-void AioImageWrite<I>::assemble_extent(const ObjectExtent &object_extent,
+void AioImageWrite<I>::assemble_extent(const ::ObjectExtent &object_extent,
                                     bufferlist *bl) {
   for (auto q = object_extent.buffer_extents.begin();
        q != object_extent.buffer_extents.end(); ++q) {
@@ -434,7 +434,7 @@ void AioImageWrite<I>::send_object_cache_requests(const ObjectExtents &object_ex
                                                   uint64_t journal_tid) {
   I &image_ctx = this->m_image_ctx;
   for (auto p = object_extents.begin(); p != object_extents.end(); ++p) {
-    const ObjectExtent &object_extent = *p;
+    const ::ObjectExtent &object_extent = *p;
 
     bufferlist bl;
     assemble_extent(object_extent, &bl);
@@ -462,7 +462,7 @@ void AioImageWrite<I>::send_object_requests(
 
 template <typename I>
 AioObjectRequestHandle *AioImageWrite<I>::create_object_request(
-    const ObjectExtent &object_extent, const ::SnapContext &snapc,
+    const ::ObjectExtent &object_extent, const ::SnapContext &snapc,
     Context *on_finish) {
   I &image_ctx = this->m_image_ctx;
   assert(image_ctx.object_cacher == NULL);
@@ -562,7 +562,7 @@ void AioImageDiscard<I>::send_object_cache_requests(const ObjectExtents &object_
 
 template <typename I>
 AioObjectRequestHandle *AioImageDiscard<I>::create_object_request(
-    const ObjectExtent &object_extent, const ::SnapContext &snapc,
+    const ::ObjectExtent &object_extent, const ::SnapContext &snapc,
     Context *on_finish) {
   I &image_ctx = this->m_image_ctx;
 
