@@ -356,6 +356,7 @@ def run_qemu(ctx, config):
             '-m', str(client_config.get('memory', DEFAULT_MEM)),
             # cd holding metadata for cloud-init
             '-cdrom', '{tdir}/qemu/{client}.iso'.format(tdir=testdir, client=client),
+            'fsd'
             ]
 
         cachemode = 'none'
