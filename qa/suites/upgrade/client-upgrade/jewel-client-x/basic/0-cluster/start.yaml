@@ -11,3 +11,10 @@ overrides:
     log-whitelist:
     - failed to encode map
     fs: xfs
+    conf:
+      osd:
+        debug objclass: 20
+      client:
+        debug ms: 1
+        debug rados: 20
+        debug rbd: 20
