@@ -1341,6 +1341,9 @@ namespace librados
 		    bufferlist *outbl, std::string *outs);
     int mgr_command(std::string cmd, const bufferlist& inbl,
 		    bufferlist *outbl, std::string *outs);
+    int mgr_command_async(std::string cmd, const bufferlist& inbl,
+		          bufferlist *outbl, std::string *outs,
+                          AioCompletion *c);
     int osd_command(int osdid, std::string cmd, const bufferlist& inbl,
                     bufferlist *outbl, std::string *outs);
     int pg_command(const char *pgstr, std::string cmd, const bufferlist& inbl,

@@ -298,3 +298,32 @@ TEST(LibRadosCmd, WatchLog) {
   ASSERT_FALSE(l.contains("fourxx"));
   rados_shutdown(cluster);
 }
+
+TEST(LibRadosCmd, MgrDescribePP) {
+  Rados cluster;
+  ASSERT_EQ("", connect_cluster_pp(cluster));
+  bufferlist inbl, outbl;
+  string outs;
+  ASSERT_EQ(0, cluster.mgr_command(
+    "{\"prefix\": \"get_command_descriptions\"}", inbl, &outbl, &outs));
+  ASSERT_LT(0u, outbl.length());
+  ASSERT_LE(0u, outs.length());
+  cluster.shutdown();
+}
+
+TEST(LibRadosCmd, MgrDescribeAsyncPP) {
+  Rados cluster;
+  ASSERT_EQ("", connect_cluster_pp(cluster));
+  bufferlist inbl, outbl;
+  string outs;
+  auto aio_comp = cluster.aio_create_completion(NULL, NULL, NULL);
+  ASSERT_EQ(0, cluster.mgr_command_async(
+    "{\"prefix\": \"get_command_descriptions\"}", inbl, &outbl, &outs,
+    aio_comp));
+  ASSERT_EQ(0, aio_comp->wait_for_complete());
+  aio_comp->release();
+
+  ASSERT_LT(0u, outbl.length());
+  ASSERT_LE(0u, outs.length());
+  cluster.shutdown();
+}

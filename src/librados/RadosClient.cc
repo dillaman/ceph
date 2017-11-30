@@ -829,20 +829,25 @@ int librados::RadosClient::mgr_command(const vector<string>& cmd,
 				       const bufferlist &inbl,
 				       bufferlist *outbl, string *outs)
 {
-  Mutex::Locker l(lock);
-
-  C_SaferCond cond;
-  int r = mgrclient.start_command(cmd, inbl, outbl, outs, &cond);
-  if (r < 0)
-    return r;
-
-  lock.Unlock();
-  r = cond.wait();
-  lock.Lock();
-
-  return r;
+  C_SaferCond ctx;
+  mon_command_async(cmd, inbl, outbl, outs, &ctx);
+  return ctx.wait();
 }
 
+int librados::RadosClient::mgr_command_async(const vector<string>& cmd,
+                                             const bufferlist &inbl,
+                                             bufferlist *outbl, string *outs,
+                                             Context *on_finish)
+{
+  // mgr map will be available before OSD map
+  int r = wait_for_osdmap();
+  if (r < 0) {
+    return r;
+  }
+
+  Mutex::Locker l(lock);
+  return mgrclient.start_command(cmd, inbl, outbl, outs, on_finish);
+}
 
 int librados::RadosClient::mon_command(int rank, const vector<string>& cmd,
 				       const bufferlist &inbl,

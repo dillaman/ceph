@@ -2481,7 +2481,15 @@ int librados::Rados::mgr_command(std::string cmd, const bufferlist& inbl,
   return client->mgr_command(cmdvec, inbl, outbl, outs);
 }
 
-
+int librados::Rados::mgr_command_async(std::string cmd, const bufferlist& inbl,
+                                       bufferlist *outbl, std::string *outs,
+                                       AioCompletion *c)
+{
+  vector<string> cmdvec;
+  cmdvec.push_back(cmd);
+  return client->mgr_command_async(cmdvec, inbl, outbl, outs,
+                                   new C_AioCompleteAndSafe(c->pc));
+}
 
 int librados::Rados::pg_command(const char *pgstr, std::string cmd, const bufferlist& inbl,
                                 bufferlist *outbl, std::string *outs)
