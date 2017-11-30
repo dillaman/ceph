@@ -5,6 +5,11 @@
   2GB to match the C++ API's Image::discard method. This restriction
   prevents overflow of the result code.
 
+* The rbd-mirror daemon cephx user now requires "allow r" caps for the
+  mgr service::
+
+  ceph auth get-or-create client.rbd-mirror.{unique id} mon 'profile rbd' osd 'profile rbd' mgr 'allow r'
+
 * *CephFS*:
 
   * Several "ceph mds" commands have been obsoleted and replaced

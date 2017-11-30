@@ -307,7 +307,7 @@ Each ``rbd-mirror`` daemon should use a unique Ceph user ID. To
 `create a Ceph user`_, with ``ceph`` specify the ``auth get-or-create``
 command, user name, monitor caps, and OSD caps::
 
-  ceph auth get-or-create client.rbd-mirror.{unique id} mon 'profile rbd' osd 'profile rbd'
+  ceph auth get-or-create client.rbd-mirror.{unique id} mon 'profile rbd' osd 'profile rbd' mgr 'allow r'
 
 The ``rbd-mirror`` daemon can be managed by ``systemd`` by specifying the user
 ID as the daemon instance::
