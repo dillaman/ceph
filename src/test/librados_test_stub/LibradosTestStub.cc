@@ -1045,6 +1045,17 @@ int Rados::mon_command(std::string cmd, const bufferlist& inbl,
   return impl->mon_command(cmds, inbl, outbl, outs);
 }
 
+int Rados::mgr_command_async(std::string cmd, const bufferlist& inbl,
+                             bufferlist *outbl, std::string *outs,
+                             AioCompletion *c) {
+  TestRadosClient *impl = reinterpret_cast<TestRadosClient*>(client);
+  impl->add_aio_operation("", true,
+                          [=]() {
+                            return impl->mgr_command(cmd, inbl, outbl, outs);
+                          }, c->pc);
+  return 0;
+}
+
 int Rados::service_daemon_register(const std::string& service,
                                    const std::string& name,
                                    const std::map<std::string,std::string>& metadata) {

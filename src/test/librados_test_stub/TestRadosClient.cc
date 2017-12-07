@@ -5,6 +5,7 @@
 #include "test/librados_test_stub/TestIoCtxImpl.h"
 #include "librados/AioCompletionImpl.h"
 #include "include/assert.h"
+#include "include/stringify.h"
 #include "common/ceph_json.h"
 #include "common/Finisher.h"
 #include <boost/bind.hpp>
@@ -169,6 +170,50 @@ int TestRadosClient::mon_command(const std::vector<std::string>& cmd,
     }
   }
   return -ENOSYS;
+}
+
+int TestRadosClient::mgr_command(std::string cmd, const bufferlist& inbl,
+                                 bufferlist *outbl, std::string *outs) {
+  JSONParser parser;
+  if (!parser.parse(cmd.c_str(), cmd.length())) {
+    return -EINVAL;
+  }
+
+  JSONObjIter j_it = parser.find("prefix");
+  if (j_it.end()) {
+    return -EINVAL;
+  }
+
+  if ((*j_it)->get_data() == "service dump") {
+    std::stringstream response;
+    response << "{\"services\": {";
+    if (m_service_daemon) {
+      response << "\"" << m_service_daemon->first << "\": {"
+               <<   "\"daemons\": {"
+               <<     "\"" << m_service_daemon->second << "\": {"
+               <<       "\"start_epoch\": 123, "
+               <<       "\"gid\": " << stringify(get_instance_id())
+               <<     "}"
+               <<   "}"
+               << "}";
+    }
+    response << "}}";
+    outbl->append(response.str());
+    return 0;
+  }
+  return -ENOSYS;
+}
+
+int TestRadosClient::service_daemon_register(
+    const std::string& service, const std::string& name,
+    const std::map<std::string,std::string>& metadata) {
+  m_service_daemon = {service, name};
+  return 0;
+}
+
+int TestRadosClient::service_daemon_update_status(
+    std::map<std::string,std::string>&& status) {
+  return 0;
 }
 
 void TestRadosClient::add_aio_operation(const std::string& oid,

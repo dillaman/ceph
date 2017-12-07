@@ -12,6 +12,7 @@
 
 #include <boost/function.hpp>
 #include <boost/functional/hash.hpp>
+#include <boost/optional.hpp>
 
 #include "include/rados/librados.hpp"
 #include "common/config.h"
@@ -74,14 +75,16 @@ public:
   virtual int mon_command(const std::vector<std::string>& cmd,
                           const bufferlist &inbl,
                           bufferlist *outbl, std::string *outs);
+  virtual int mgr_command(std::string cmd, const bufferlist& inbl,
+                          bufferlist *outbl, std::string *outs);
 
   virtual void object_list(int64_t pool_id,
 			   std::list<librados::TestRadosClient::Object> *list) = 0;
 
   virtual int service_daemon_register(const std::string& service,
                                       const std::string& name,
-                                      const std::map<std::string,std::string>& metadata) = 0;
-  virtual int service_daemon_update_status(std::map<std::string,std::string>&& status) = 0;
+                                      const std::map<std::string,std::string>& metadata);
+  virtual int service_daemon_update_status(std::map<std::string,std::string>&& status);
 
   virtual int pool_create(const std::string &pool_name) = 0;
   virtual int pool_delete(const std::string &pool_name) = 0;
@@ -130,6 +133,7 @@ private:
   std::vector<Finisher *> m_finishers;
   boost::hash<std::string> m_hash;
 
+  boost::optional<std::pair<std::string, std::string>> m_service_daemon;
 };
 
 } // namespace librados
