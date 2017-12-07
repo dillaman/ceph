@@ -35,6 +35,11 @@ public:
     return TestMemRadosClient::blacklist_add(client_address, expire_seconds);
   }
 
+  MOCK_METHOD0(get_instance_id, uint64_t());
+  uint64_t do_get_instance_id() {
+    return TestMemRadosClient::get_instance_id();
+  }
+
   MOCK_METHOD4(mgr_command, int(std::string, const bufferlist&,
                                 bufferlist *, std::string *));
   int do_mgr_command(std::string cmd, const bufferlist& inbl,
@@ -65,6 +70,7 @@ public:
 
     ON_CALL(*this, create_ioctx(_, _)).WillByDefault(Invoke(this, &MockTestMemRadosClient::do_create_ioctx));
     ON_CALL(*this, blacklist_add(_, _)).WillByDefault(Invoke(this, &MockTestMemRadosClient::do_blacklist_add));
+    ON_CALL(*this, get_instance_id()).WillByDefault(Invoke(this, &MockTestMemRadosClient::do_get_instance_id));
     ON_CALL(*this, mgr_command(_, _, _, _)).WillByDefault(Invoke(this, &MockTestMemRadosClient::do_mgr_command));
     ON_CALL(*this, service_daemon_register(_, _, _)).WillByDefault(Invoke(this, &MockTestMemRadosClient::do_service_daemon_register));
     ON_CALL(*this, service_daemon_update_status_r(_)).WillByDefault(Invoke(this, &MockTestMemRadosClient::do_service_daemon_update_status_r));
