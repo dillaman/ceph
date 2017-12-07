@@ -43,6 +43,7 @@ set(rbd_mirror_internal
   image_sync/SyncPointCreateRequest.cc
   image_sync/SyncPointPruneRequest.cc
   pool_watcher/RefreshImagesRequest.cc
+  service_daemon/IsLeaderRequest.cc
   service_daemon/Types.cc)
 
 add_library(rbd_mirror_internal STATIC

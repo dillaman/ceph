@@ -35,6 +35,7 @@ add_executable(unittest_rbd_mirror
   image_sync/test_mock_SyncPointCreateRequest.cc
   image_sync/test_mock_SyncPointPruneRequest.cc
   pool_watcher/test_mock_RefreshImagesRequest.cc
+  service_daemon/test_mock_IsLeaderRequest.cc
   )
 add_ceph_unittest(unittest_rbd_mirror)
 set_target_properties(unittest_rbd_mirror PROPERTIES COMPILE_FLAGS
