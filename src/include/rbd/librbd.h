@@ -396,6 +396,7 @@ CEPH_RBD_API int rbd_get_size(rbd_image_t image, uint64_t *size);
 CEPH_RBD_API int rbd_get_features(rbd_image_t image, uint64_t *features);
 CEPH_RBD_API int rbd_update_features(rbd_image_t image, uint64_t features,
                                      uint8_t enabled);
+CEPH_RBD_API int rbd_get_op_features(rbd_image_t image, uint64_t *op_features);
 CEPH_RBD_API int rbd_get_stripe_unit(rbd_image_t image, uint64_t *stripe_unit);
 CEPH_RBD_API int rbd_get_stripe_count(rbd_image_t image,
                                       uint64_t *stripe_count);

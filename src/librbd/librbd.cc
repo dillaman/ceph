@@ -1045,6 +1045,12 @@ namespace librbd {
     return r;
   }
 
+  int Image::get_op_features(uint64_t *op_features)
+  {
+    ImageCtx *ictx = (ImageCtx *)ctx;
+    return librbd::api::Image<>::get_op_features(ictx, op_features);
+  }
+
   uint64_t Image::get_stripe_unit() const
   {
     ImageCtx *ictx = (ImageCtx *)ctx;
@@ -3028,6 +3034,12 @@ extern "C" int rbd_update_features(rbd_image_t image, uint64_t features,
   int r = ictx->operations->update_features(features, features_enabled);
   tracepoint(librbd, update_features_exit, r);
   return r;
+}
+
+extern "C" int rbd_get_op_features(rbd_image_t image, uint64_t *op_features)
+{
+  librbd::ImageCtx *ictx = (librbd::ImageCtx *)image;
+  return librbd::api::Image<>::get_op_features(ictx, op_features);
 }
 
 extern "C" int rbd_get_stripe_unit(rbd_image_t image, uint64_t *stripe_unit)

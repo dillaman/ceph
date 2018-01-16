@@ -298,6 +298,7 @@ public:
   int get_group(group_spec_t *group_spec);
   int features(uint64_t *features);
   int update_features(uint64_t features, bool enabled);
+  int get_op_features(uint64_t *op_features);
   int overlap(uint64_t *overlap);
   int get_flags(uint64_t *flags);
   int set_image_notification(int fd, int type);
