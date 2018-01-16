@@ -65,6 +65,10 @@ cdef extern from "rbd/librbd.h" nogil:
         _RBD_FEATURES_SINGLE_CLIENT "RBD_FEATURES_SINGLE_CLIENT"
         _RBD_FEATURES_ALL "RBD_FEATURES_ALL"
 
+        _RBD_OPERATION_FEATURE_CLONE_V2 "RBD_OPERATION_FEATURE_CLONE_V2"
+        _RBD_OPERATION_FEATURE_GROUP "RBD_OPERATION_FEATURE_GROUP"
+        _RBD_OPERATION_FEATURE_SNAP_TRASH "RBD_OPERATION_FEATURE_SNAP_TRASH"
+
         _RBD_FLAG_OBJECT_MAP_INVALID "RBD_FLAG_OBJECT_MAP_INVALID"
         _RBD_FLAG_FAST_DIFF_INVALID "RBD_FLAG_FAST_DIFF_INVALID"
 
@@ -271,6 +275,7 @@ cdef extern from "rbd/librbd.h" nogil:
     int rbd_get_features(rbd_image_t image, uint64_t *features)
     int rbd_update_features(rbd_image_t image, uint64_t features,
                             uint8_t enabled)
+    int rbd_get_op_features(rbd_image_t image, uint64_t *op_features)
     int rbd_get_stripe_unit(rbd_image_t image, uint64_t *stripe_unit)
     int rbd_get_stripe_count(rbd_image_t image, uint64_t *stripe_count)
     int rbd_get_create_timestamp(rbd_image_t image, timespec *timestamp)
@@ -452,7 +457,12 @@ RBD_FEATURES_MUTABLE = _RBD_FEATURES_MUTABLE
 RBD_FEATURES_SINGLE_CLIENT = _RBD_FEATURES_SINGLE_CLIENT
 RBD_FEATURES_ALL = _RBD_FEATURES_ALL
 
+RBD_OPERATION_FEATURE_CLONE_V2 = _RBD_OPERATION_FEATURE_CLONE_V2
+RBD_OPERATION_FEATURE_GROUP = _RBD_OPERATION_FEATURE_GROUP
+RBD_OPERATION_FEATURE_SNAP_TRASH = _RBD_OPERATION_FEATURE_SNAP_TRASH
+
 RBD_FLAG_OBJECT_MAP_INVALID = _RBD_FLAG_OBJECT_MAP_INVALID
+RBD_FLAG_FAST_DIFF_INVALID = _RBD_FLAG_FAST_DIFF_INVALID
 
 RBD_MIRROR_MODE_DISABLED = _RBD_MIRROR_MODE_DISABLED
 RBD_MIRROR_MODE_IMAGE = _RBD_MIRROR_MODE_IMAGE
@@ -2032,6 +2042,19 @@ cdef class Image(object):
         if ret != 0:
             raise make_ex(ret, 'error updating features for image %s' %
                                (self.name))
+
+    def op_features(self):
+        """
+        Get the op features bitmask of the image.
+
+        :returns: int - the op features bitmask of the image
+        """
+        cdef uint64_t op_features
+        with nogil:
+            ret = rbd_get_op_features(self.image, &op_features)
+        if ret != 0:
+            raise make_ex(ret, 'error getting op features for image %s' % (self.name))
+        return op_features
 
     def overlap(self):
         """
