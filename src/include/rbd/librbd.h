@@ -422,6 +422,7 @@ CEPH_RBD_API int rbd_get_parent_info2(rbd_image_t image,
                                       char *parent_snapname,
                                       size_t psnapnamelen);
 CEPH_RBD_API int rbd_get_flags(rbd_image_t image, uint64_t *flags);
+CEPH_RBD_API int rbd_get_group(rbd_image_t image, rbd_group_spec_t *group_spec);
 CEPH_RBD_API int rbd_set_image_notification(rbd_image_t image, int fd, int type);
 
 /* exclusive lock feature */
@@ -946,9 +947,6 @@ CEPH_RBD_API int rbd_group_image_list(
 				  rados_ioctx_t group_p, const char *group_name,
 				  rbd_group_image_status_t *images,
 				  size_t *image_size);
-CEPH_RBD_API int rbd_image_get_group(rados_ioctx_t image_p,
-				     const char *image_name,
-				     rbd_group_spec_t *group_spec);
 CEPH_RBD_API void rbd_group_spec_cleanup(rbd_group_spec_t *group_spec);
 CEPH_RBD_API void rbd_group_image_status_cleanup(rbd_group_image_status_t *image);
 CEPH_RBD_API void rbd_group_image_status_list_cleanup(rbd_group_image_status_t *images,

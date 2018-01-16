@@ -3192,6 +3192,24 @@ extern "C" int rbd_get_flags(rbd_image_t image, uint64_t *flags)
   return r;
 }
 
+extern "C" int rbd_get_group(rbd_image_t image, rbd_group_spec_t *group_spec)
+{
+  librbd::ImageCtx *ictx = (librbd::ImageCtx *)image;
+  tracepoint(librbd, image_get_group_enter, ictx->name.c_str());
+
+  librbd::group_spec_t cpp_group_spec;
+  int r = librbd::api::Group<>::image_get_group(ictx, &cpp_group_spec);
+  if (r >= 0) {
+    group_spec->name = strdup(cpp_group_spec.name.c_str());
+    group_spec->pool = cpp_group_spec.pool;
+  } else {
+    group_spec->name = NULL;
+  }
+
+  tracepoint(librbd, image_get_group_exit, r);
+  return r;
+}
+
 extern "C" int rbd_set_image_notification(rbd_image_t image, int fd, int type)
 {
   librbd::ImageCtx *ictx = (librbd::ImageCtx *)image;
