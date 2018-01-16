@@ -106,6 +106,10 @@ cdef extern from "rbd/librbd.h" nogil:
         char *group_name
         char *group_snap_name
 
+    ctypedef struct rbd_group_spec_t:
+        char *name
+        int64_t pool
+
     ctypedef struct rbd_child_info_t:
         char *pool_name
         char *image_name
@@ -289,6 +293,8 @@ cdef extern from "rbd/librbd.h" nogil:
                              char *parent_id, size_t pidlen,
                              char *parent_snapname, size_t psnapnamelen)
     int rbd_get_flags(rbd_image_t image, uint64_t *flags)
+    int rbd_get_group(rbd_image_t image, rbd_group_spec_t *group_spec)
+
     ssize_t rbd_read2(rbd_image_t image, uint64_t ofs, size_t len,
                       char *buf, int op_flags)
     ssize_t rbd_write2(rbd_image_t image, uint64_t ofs, size_t len,
@@ -405,6 +411,7 @@ cdef extern from "rbd/librbd.h" nogil:
     int rbd_group_create(rados_ioctx_t p, const char *name)
     int rbd_group_remove(rados_ioctx_t p, const char *name)
     int rbd_group_list(rados_ioctx_t p, char *names, size_t *size)
+    void rbd_group_spec_cleanup(rbd_group_spec_t *group_spec)
     int rbd_group_image_add(rados_ioctx_t group_p, const char *group_name,
 			    rados_ioctx_t image_p, const char *image_name)
     int rbd_group_image_remove(rados_ioctx_t group_p, const char *group_name,
@@ -2084,6 +2091,53 @@ cdef class Image(object):
         if ret != 0:
             raise make_ex(ret, 'error getting flags for image %s' % (self.name))
         return flags
+
+    def group(self):
+        """
+        Get information about the image's group.
+
+        :returns: dict - contains the following keys:
+
+            * ``pool`` (int) - id of the group pool
+
+            * ``name`` (ste) - name of the group
+
+        """
+        cdef rbd_group_spec_t spec
+        with nogil:
+            ret = rbd_get_group(self.image, &spec)
+        if ret != 0:
+            raise make_ex(ret, 'error getting group for image %s' % (self.name,))
+        result = {
+            'pool' : spec.pool,
+            'name' : decode_cstr(spec.name)
+            }
+        rbd_group_spec_cleanup(&spec)
+        return result
+
+    def id(self):
+        """
+        Get the RBD v2 internal image id
+
+        :returns: str - image id
+        """
+        cdef:
+            int ret = -errno.ERANGE
+            size_t size = 32
+            char *image_id = NULL
+        try:
+            while ret == -errno.ERANGE and size <= 4096:
+                image_id =  <char *>realloc_chk(image_id, size)
+                with nogil:
+                    ret = rbd_get_id(self.image, image_id, size)
+                if ret == -errno.ERANGE:
+                    size *= 2
+
+            if ret != 0:
+                raise make_ex(ret, 'error getting id for image %s' % (self.name,))
+            return decode_cstr(image_id)
+        finally:
+            free(image_id)
 
     def is_exclusive_lock_owner(self):
         """

@@ -1748,6 +1748,9 @@ class TestGroups(object):
         with Image(ioctx, image_name) as image:
             eq(RBD_OPERATION_FEATURE_GROUP,
                image.op_features() & RBD_OPERATION_FEATURE_GROUP)
+            group = image.group()
+            eq(group_name, group['name'])
+
         eq([image_name], [img['name'] for img in self.group.list_images()])
         self.group.remove_image(ioctx, image_name)
         eq([], list(self.group.list_images()))
