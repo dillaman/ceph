@@ -5,7 +5,7 @@ meta:
    upgrade the client node
 tasks:
 - install:
-    branch: luminous
+    branch: wip-22676-luminous
 - print: "**** done installing luminous"
 - ceph:
     log-whitelist:
