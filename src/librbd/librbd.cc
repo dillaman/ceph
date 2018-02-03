@@ -1080,7 +1080,13 @@ namespace librbd {
   {
     ImageCtx *ictx = reinterpret_cast<ImageCtx *>(ctx);
     tracepoint(librbd, update_features_enter, ictx, features, enabled);
-    int r = ictx->operations->update_features(features, enabled);
+    int r;
+    if ((features & ~(RBD_FEATURES_ALL & ~RBD_FEATURES_IMPLICIT_ENABLE)) != 0) {
+      lderr(ictx->cct) << "invalid features" << dendl;
+      r = -EINVAL;
+    } else {
+      r = ictx->operations->update_features(features, enabled);
+    }
     tracepoint(librbd, update_features_exit, r);
     return r;
   }
@@ -3115,7 +3121,13 @@ extern "C" int rbd_update_features(rbd_image_t image, uint64_t features,
   librbd::ImageCtx *ictx = reinterpret_cast<librbd::ImageCtx *>(image);
   bool features_enabled = enabled != 0;
   tracepoint(librbd, update_features_enter, ictx, features, features_enabled);
-  int r = ictx->operations->update_features(features, features_enabled);
+  int r;
+  if ((features & ~(RBD_FEATURES_ALL & ~RBD_FEATURES_IMPLICIT_ENABLE)) != 0) {
+    lderr(ictx->cct) << "invalid features" << dendl;
+    r = -EINVAL;
+  } else {
+    r = ictx->operations->update_features(features, features_enabled);
+  }
   tracepoint(librbd, update_features_exit, r);
   return r;
 }
