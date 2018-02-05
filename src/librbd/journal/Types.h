@@ -198,29 +198,14 @@ struct SnapCreateEvent : public SnapEventBase {
   void dump(Formatter *f) const;
 };
 
-struct SnapRemoveEvent : public SnapEventBase {
-  static const EventType TYPE = EVENT_TYPE_SNAP_REMOVE;
-
-  SnapRemoveEvent() {
-  }
-  SnapRemoveEvent(uint64_t op_tid, const cls::rbd::SnapshotNamespace& snap_namespace,
-		  const std::string &snap_name)
-    : SnapEventBase(op_tid, snap_namespace, snap_name) {
-  }
-
-  using SnapEventBase::encode;
-  using SnapEventBase::decode;
-  using SnapEventBase::dump;
-};
-
 struct SnapRenameEvent : public OpEventBase{
   static const EventType TYPE = EVENT_TYPE_SNAP_RENAME;
 
-  uint64_t snap_id;
+  uint64_t snap_id = CEPH_NOSNAP;
   std::string src_snap_name;
   std::string dst_snap_name;
 
-  SnapRenameEvent() : snap_id(CEPH_NOSNAP) {
+  SnapRenameEvent() {
   }
   SnapRenameEvent(uint64_t op_tid, uint64_t src_snap_id,
                   const std::string &src_snap_name,
@@ -236,34 +221,85 @@ struct SnapRenameEvent : public OpEventBase{
   void dump(Formatter *f) const;
 };
 
-struct SnapProtectEvent : public SnapEventBase {
+struct SnapIdEventBase : public SnapEventBase {
+  uint64_t snap_id = CEPH_NOSNAP;
+
+  SnapIdEventBase() {
+  }
+  SnapIdEventBase(uint64_t op_tid, uint64_t snap_id,
+                  const cls::rbd::SnapshotNamespace& snap_namespace,
+                  const std::string &snap_name)
+    : SnapEventBase(op_tid, snap_namespace, snap_name),
+      snap_id(snap_id) {
+  }
+
+  void encode(bufferlist& bl) const;
+  void decode(__u8 version, bufferlist::iterator& it);
+  void dump(Formatter *f) const;
+};
+
+struct SnapRemoveEvent : public SnapIdEventBase {
+  static const EventType TYPE = EVENT_TYPE_SNAP_REMOVE;
+
+  SnapRemoveEvent() {
+  }
+  SnapRemoveEvent(uint64_t op_tid, uint64_t snap_id,
+                  const cls::rbd::SnapshotNamespace& snap_namespace,
+		  const std::string &snap_name)
+    : SnapIdEventBase(op_tid, snap_id, snap_namespace, snap_name) {
+  }
+
+  using SnapIdEventBase::encode;
+  using SnapIdEventBase::decode;
+  using SnapIdEventBase::dump;
+};
+
+struct SnapProtectEvent : public SnapIdEventBase {
   static const EventType TYPE = EVENT_TYPE_SNAP_PROTECT;
 
   SnapProtectEvent() {
   }
-  SnapProtectEvent(uint64_t op_tid, const cls::rbd::SnapshotNamespace& snap_namespace,
+  SnapProtectEvent(uint64_t op_tid, uint64_t snap_id,
+                   const cls::rbd::SnapshotNamespace& snap_namespace,
 		   const std::string &snap_name)
-    : SnapEventBase(op_tid, snap_namespace, snap_name) {
+    : SnapIdEventBase(op_tid, snap_id, snap_namespace, snap_name) {
   }
 
-  using SnapEventBase::encode;
-  using SnapEventBase::decode;
-  using SnapEventBase::dump;
+  using SnapIdEventBase::encode;
+  using SnapIdEventBase::decode;
+  using SnapIdEventBase::dump;
 };
 
-struct SnapUnprotectEvent : public SnapEventBase {
+struct SnapUnprotectEvent : public SnapIdEventBase {
   static const EventType TYPE = EVENT_TYPE_SNAP_UNPROTECT;
 
   SnapUnprotectEvent() {
   }
-  SnapUnprotectEvent(uint64_t op_tid, const cls::rbd::SnapshotNamespace &snap_namespace,
+  SnapUnprotectEvent(uint64_t op_tid, uint64_t snap_id,
+                     const cls::rbd::SnapshotNamespace &snap_namespace,
 		     const std::string &snap_name)
-    : SnapEventBase(op_tid, snap_namespace, snap_name) {
+    : SnapIdEventBase(op_tid, snap_id, snap_namespace, snap_name) {
   }
 
-  using SnapEventBase::encode;
-  using SnapEventBase::decode;
-  using SnapEventBase::dump;
+  using SnapIdEventBase::encode;
+  using SnapIdEventBase::decode;
+  using SnapIdEventBase::dump;
+};
+
+struct SnapRollbackEvent : public SnapIdEventBase {
+  static const EventType TYPE = EVENT_TYPE_SNAP_ROLLBACK;
+
+  SnapRollbackEvent() {
+  }
+  SnapRollbackEvent(uint64_t op_tid, uint64_t snap_id,
+                    const cls::rbd::SnapshotNamespace& snap_namespace,
+		    const std::string &snap_name)
+    : SnapIdEventBase(op_tid, snap_id, snap_namespace, snap_name) {
+  }
+
+  using SnapIdEventBase::encode;
+  using SnapIdEventBase::decode;
+  using SnapIdEventBase::dump;
 };
 
 struct SnapLimitEvent : public OpEventBase {
@@ -279,21 +315,6 @@ struct SnapLimitEvent : public OpEventBase {
   void encode(bufferlist& bl) const;
   void decode(__u8 version, bufferlist::iterator& it);
   void dump(Formatter *f) const;
-};
-
-struct SnapRollbackEvent : public SnapEventBase {
-  static const EventType TYPE = EVENT_TYPE_SNAP_ROLLBACK;
-
-  SnapRollbackEvent() {
-  }
-  SnapRollbackEvent(uint64_t op_tid, const cls::rbd::SnapshotNamespace& snap_namespace,
-		    const std::string &snap_name)
-    : SnapEventBase(op_tid, snap_namespace, snap_name) {
-  }
-
-  using SnapEventBase::encode;
-  using SnapEventBase::decode;
-  using SnapEventBase::dump;
 };
 
 struct RenameEvent : public OpEventBase {

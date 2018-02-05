@@ -30,11 +30,6 @@ class TestMockOperationSnapshotProtectRequest : public TestMockFixture {
 public:
   typedef SnapshotProtectRequest<MockImageCtx> MockSnapshotProtectRequest;
 
-  void expect_get_snap_id(MockImageCtx &mock_image_ctx, uint64_t snap_id) {
-    EXPECT_CALL(mock_image_ctx, get_snap_id(_, _))
-                  .WillOnce(Return(snap_id));
-  }
-
   void expect_is_snap_protected(MockImageCtx &mock_image_ctx, bool is_protected,
                                 int r) {
     auto &expect = EXPECT_CALL(mock_image_ctx, is_snap_protected(_, _));
@@ -64,19 +59,20 @@ TEST_F(TestMockOperationSnapshotProtectRequest, Success) {
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
   ASSERT_EQ(0, snap_create(*ictx, "snap1"));
   ASSERT_EQ(0, ictx->state->refresh_if_required());
+  uint64_t snap_id = ictx->snap_info.rbegin()->first;
 
   MockImageCtx mock_image_ctx(*ictx);
 
   expect_op_work_queue(mock_image_ctx);
 
   ::testing::InSequence seq;
-  expect_get_snap_id(mock_image_ctx, ictx->snap_info.rbegin()->first);
   expect_is_snap_protected(mock_image_ctx, false, 0);
   expect_set_protection_status(mock_image_ctx, 0);
 
   C_SaferCond cond_ctx;
   MockSnapshotProtectRequest *req = new MockSnapshotProtectRequest(
-    mock_image_ctx, &cond_ctx, cls::rbd::UserSnapshotNamespace(), "snap1");
+    mock_image_ctx, &cond_ctx, cls::rbd::UserSnapshotNamespace(), "snap1",
+    snap_id);
   {
     RWLock::RLocker owner_locker(mock_image_ctx.owner_lock);
     req->send();
@@ -97,11 +93,11 @@ TEST_F(TestMockOperationSnapshotProtectRequest, GetSnapIdMissing) {
   expect_op_work_queue(mock_image_ctx);
 
   ::testing::InSequence seq;
-  expect_get_snap_id(mock_image_ctx, CEPH_NOSNAP);
 
   C_SaferCond cond_ctx;
   MockSnapshotProtectRequest *req = new MockSnapshotProtectRequest(
-    mock_image_ctx, &cond_ctx, cls::rbd::UserSnapshotNamespace(), "snap1");
+    mock_image_ctx, &cond_ctx, cls::rbd::UserSnapshotNamespace(), "snap1",
+    CEPH_NOSNAP);
   {
     RWLock::RLocker owner_locker(mock_image_ctx.owner_lock);
     req->send();
@@ -116,18 +112,19 @@ TEST_F(TestMockOperationSnapshotProtectRequest, IsSnapProtectedError) {
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
   ASSERT_EQ(0, snap_create(*ictx, "snap1"));
   ASSERT_EQ(0, ictx->state->refresh_if_required());
+  uint64_t snap_id = ictx->snap_info.rbegin()->first;
 
   MockImageCtx mock_image_ctx(*ictx);
 
   expect_op_work_queue(mock_image_ctx);
 
   ::testing::InSequence seq;
-  expect_get_snap_id(mock_image_ctx, ictx->snap_info.rbegin()->first);
   expect_is_snap_protected(mock_image_ctx, false, -EINVAL);
 
   C_SaferCond cond_ctx;
   MockSnapshotProtectRequest *req = new MockSnapshotProtectRequest(
-    mock_image_ctx, &cond_ctx, cls::rbd::UserSnapshotNamespace(), "snap1");
+    mock_image_ctx, &cond_ctx, cls::rbd::UserSnapshotNamespace(), "snap1",
+    snap_id);
   {
     RWLock::RLocker owner_locker(mock_image_ctx.owner_lock);
     req->send();
@@ -142,18 +139,19 @@ TEST_F(TestMockOperationSnapshotProtectRequest, SnapAlreadyProtected) {
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
   ASSERT_EQ(0, snap_create(*ictx, "snap1"));
   ASSERT_EQ(0, ictx->state->refresh_if_required());
+  uint64_t snap_id = ictx->snap_info.rbegin()->first;
 
   MockImageCtx mock_image_ctx(*ictx);
 
   expect_op_work_queue(mock_image_ctx);
 
   ::testing::InSequence seq;
-  expect_get_snap_id(mock_image_ctx, ictx->snap_info.rbegin()->first);
   expect_is_snap_protected(mock_image_ctx, true, 0);
 
   C_SaferCond cond_ctx;
   MockSnapshotProtectRequest *req = new MockSnapshotProtectRequest(
-    mock_image_ctx, &cond_ctx, cls::rbd::UserSnapshotNamespace(), "snap1");
+    mock_image_ctx, &cond_ctx, cls::rbd::UserSnapshotNamespace(), "snap1",
+    snap_id);
   {
     RWLock::RLocker owner_locker(mock_image_ctx.owner_lock);
     req->send();
@@ -168,19 +166,20 @@ TEST_F(TestMockOperationSnapshotProtectRequest, SetProtectionStateError) {
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
   ASSERT_EQ(0, snap_create(*ictx, "snap1"));
   ASSERT_EQ(0, ictx->state->refresh_if_required());
+  uint64_t snap_id = ictx->snap_info.rbegin()->first;
 
   MockImageCtx mock_image_ctx(*ictx);
 
   expect_op_work_queue(mock_image_ctx);
 
   ::testing::InSequence seq;
-  expect_get_snap_id(mock_image_ctx, ictx->snap_info.rbegin()->first);
   expect_is_snap_protected(mock_image_ctx, false, 0);
   expect_set_protection_status(mock_image_ctx, -EINVAL);
 
   C_SaferCond cond_ctx;
   MockSnapshotProtectRequest *req = new MockSnapshotProtectRequest(
-    mock_image_ctx, &cond_ctx, cls::rbd::UserSnapshotNamespace(), "snap1");
+    mock_image_ctx, &cond_ctx, cls::rbd::UserSnapshotNamespace(), "snap1",
+    snap_id);
   {
     RWLock::RLocker owner_locker(mock_image_ctx.owner_lock);
     req->send();

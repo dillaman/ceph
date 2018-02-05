@@ -793,7 +793,8 @@ TEST_F(TestImageReplayer, MultipleReplayFailures_SingleEpoch) {
   ictx->features &= ~RBD_FEATURE_JOURNALING;
   ASSERT_EQ(0, ictx->operations->snap_create(cls::rbd::UserSnapshotNamespace(),
 					     "foo"));
-  ASSERT_EQ(0, ictx->operations->snap_protect(cls::rbd::UserSnapshotNamespace(),
+  ASSERT_EQ(0, ictx->operations->snap_protect(CEPH_NOSNAP,
+                                              cls::rbd::UserSnapshotNamespace(),
 					      "foo"));
   ASSERT_EQ(0, librbd::cls_client::add_child(&ictx->md_ctx, RBD_CHILDREN,
                                              {ictx->md_ctx.get_id(),
@@ -814,7 +815,7 @@ TEST_F(TestImageReplayer, MultipleReplayFailures_SingleEpoch) {
     ictx->journal->append_op_event(
       i,
       librbd::journal::EventEntry{
-        librbd::journal::SnapUnprotectEvent{i,
+        librbd::journal::SnapUnprotectEvent{i, CEPH_NOSNAP,
 					    cls::rbd::UserSnapshotNamespace(),
 					    "foo"}},
       &append_ctx);
@@ -846,7 +847,8 @@ TEST_F(TestImageReplayer, MultipleReplayFailures_MultiEpoch) {
   ictx->features &= ~RBD_FEATURE_JOURNALING;
   ASSERT_EQ(0, ictx->operations->snap_create(cls::rbd::UserSnapshotNamespace(),
 					     "foo"));
-  ASSERT_EQ(0, ictx->operations->snap_protect(cls::rbd::UserSnapshotNamespace(),
+  ASSERT_EQ(0, ictx->operations->snap_protect(CEPH_NOSNAP,
+                                              cls::rbd::UserSnapshotNamespace(),
 					      "foo"));
   ASSERT_EQ(0, librbd::cls_client::add_child(&ictx->md_ctx, RBD_CHILDREN,
                                              {ictx->md_ctx.get_id(),
@@ -868,7 +870,7 @@ TEST_F(TestImageReplayer, MultipleReplayFailures_MultiEpoch) {
     ictx->journal->append_op_event(
       1U,
       librbd::journal::EventEntry{
-        librbd::journal::SnapUnprotectEvent{1U,
+        librbd::journal::SnapUnprotectEvent{1U, CEPH_NOSNAP,
 					    cls::rbd::UserSnapshotNamespace(),
 					    "foo"}},
       &append_ctx);

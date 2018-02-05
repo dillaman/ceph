@@ -520,7 +520,8 @@ TEST_F(TestImageWatcher, NotifySnapRemove) {
 
   RWLock::RLocker l(ictx->owner_lock);
   C_SaferCond notify_ctx;
-  ictx->image_watcher->notify_snap_remove(cls::rbd::UserSnapshotNamespace(),
+  ictx->image_watcher->notify_snap_remove(CEPH_NOSNAP,
+                                          cls::rbd::UserSnapshotNamespace(),
 					  "snap",
 					  &notify_ctx);
   ASSERT_EQ(0, notify_ctx.wait());
@@ -544,7 +545,8 @@ TEST_F(TestImageWatcher, NotifySnapProtect) {
 
   RWLock::RLocker l(ictx->owner_lock);
   C_SaferCond notify_ctx;
-  ictx->image_watcher->notify_snap_protect(cls::rbd::UserSnapshotNamespace(),
+  ictx->image_watcher->notify_snap_protect(CEPH_NOSNAP,
+                                           cls::rbd::UserSnapshotNamespace(),
 					   "snap",
 					   &notify_ctx);
   ASSERT_EQ(0, notify_ctx.wait());
@@ -568,7 +570,8 @@ TEST_F(TestImageWatcher, NotifySnapUnprotect) {
 
   RWLock::RLocker l(ictx->owner_lock);
   C_SaferCond notify_ctx;
-  ictx->image_watcher->notify_snap_unprotect(cls::rbd::UserSnapshotNamespace(),
+  ictx->image_watcher->notify_snap_unprotect(CEPH_NOSNAP,
+                                             cls::rbd::UserSnapshotNamespace(),
 					     "snap",
 					     &notify_ctx);
   ASSERT_EQ(0, notify_ctx.wait());

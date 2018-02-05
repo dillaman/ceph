@@ -53,38 +53,42 @@ public:
 			   Context *on_finish,
                            uint64_t journal_op_tid, bool skip_object_map);
 
-  int snap_rollback(const cls::rbd::SnapshotNamespace& snap_namespace,
-		    const std::string& snap_name,
-		    ProgressContext& prog_ctx);
-  void execute_snap_rollback(const cls::rbd::SnapshotNamespace& snap_namespace,
-			     const std::string &snap_name,
-                             ProgressContext& prog_ctx, Context *on_finish);
+  int snap_rollback(uint64_t snap_id,
+                    cls::rbd::SnapshotNamespace snap_namespace,
+		    std::string snap_name, ProgressContext& prog_ctx);
+  void execute_snap_rollback(uint64_t snap_id,
+                             cls::rbd::SnapshotNamespace snap_namespace,
+			     std::string snap_name, ProgressContext& prog_ctx,
+                             Context *on_finish);
 
-  int snap_remove(const cls::rbd::SnapshotNamespace& snap_namespace,
-		  const std::string& snap_name);
-  void snap_remove(const cls::rbd::SnapshotNamespace& snap_namespace,
-		   const std::string& snap_name,
-		   Context *on_finish);
-  void execute_snap_remove(const cls::rbd::SnapshotNamespace& snap_namespace,
-			   const std::string &snap_name,
-			   Context *on_finish);
+  int snap_remove(uint64_t snap_id,
+                  cls::rbd::SnapshotNamespace snap_namespace,
+		  std::string snap_name);
+  void snap_remove(uint64_t snap_id,
+                   cls::rbd::SnapshotNamespace snap_namespace,
+		   std::string snap_name, Context *on_finish);
+  void execute_snap_remove(uint64_t snap_id,
+                           cls::rbd::SnapshotNamespace snap_namespace,
+			   std::string snap_name, Context *on_finish);
 
   int snap_rename(const char *srcname, const char *dstname);
   void execute_snap_rename(const uint64_t src_snap_id,
                            const std::string &dest_snap_name,
                            Context *on_finish);
 
-  int snap_protect(const cls::rbd::SnapshotNamespace& snap_namespace,
-		   const std::string& snap_name);
-  void execute_snap_protect(const cls::rbd::SnapshotNamespace& snap_namespace,
-			    const std::string &snap_name,
-			    Context *on_finish);
+  int snap_protect(uint64_t snap_id,
+                   cls::rbd::SnapshotNamespace snap_namespace,
+		   std::string snap_name);
+  void execute_snap_protect(uint64_t snap_id,
+                            cls::rbd::SnapshotNamespace snap_namespace,
+			    std::string snap_name, Context *on_finish);
 
-  int snap_unprotect(const cls::rbd::SnapshotNamespace& snap_namespace,
-		     const std::string& snap_name);
-  void execute_snap_unprotect(const cls::rbd::SnapshotNamespace& snap_namespace,
-			      const std::string &snap_name,
-			      Context *on_finish);
+  int snap_unprotect(uint64_t snap_id,
+                     cls::rbd::SnapshotNamespace snap_namespace,
+		     std::string snap_name);
+  void execute_snap_unprotect(uint64_t snap_id,
+                              cls::rbd::SnapshotNamespace snap_namespace,
+			      std::string snap_name, Context *on_finish);
 
   int snap_set_limit(uint64_t limit);
   void execute_snap_set_limit(uint64_t limit, Context *on_finish);

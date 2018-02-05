@@ -32,9 +32,10 @@ template <typename I>
 SnapshotProtectRequest<I>::SnapshotProtectRequest(I &image_ctx,
                                                   Context *on_finish,
 						  const cls::rbd::SnapshotNamespace &snap_namespace,
-						  const std::string &snap_name)
+						  const std::string &snap_name,
+                                                  uint64_t snap_id)
   : Request<I>(image_ctx, on_finish), m_snap_namespace(snap_namespace),
-    m_snap_name(snap_name), m_state(STATE_PROTECT_SNAP) {
+    m_snap_name(snap_name), m_snap_id(snap_id), m_state(STATE_PROTECT_SNAP) {
 }
 
 template <typename I>
@@ -85,13 +86,12 @@ int SnapshotProtectRequest<I>::verify_and_send_protect_snap() {
     return -ENOSYS;
   }
 
-  uint64_t snap_id = image_ctx.get_snap_id(m_snap_namespace, m_snap_name);
-  if (snap_id == CEPH_NOSNAP) {
+  if (m_snap_id == CEPH_NOSNAP) {
     return -ENOENT;
   }
 
   bool is_protected;
-  int r = image_ctx.is_snap_protected(snap_id, &is_protected);
+  int r = image_ctx.is_snap_protected(m_snap_id, &is_protected);
   if (r < 0) {
     return r;
   }
@@ -101,7 +101,7 @@ int SnapshotProtectRequest<I>::verify_and_send_protect_snap() {
   }
 
   librados::ObjectWriteOperation op;
-  cls_client::set_protection_status(&op, snap_id,
+  cls_client::set_protection_status(&op, m_snap_id,
                                     RBD_PROTECTION_STATUS_PROTECTED);
 
   librados::AioCompletion *rados_completion =

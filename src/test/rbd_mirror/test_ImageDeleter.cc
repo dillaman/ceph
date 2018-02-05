@@ -166,7 +166,8 @@ public:
 
     if (protect) {
       EXPECT_EQ(0, ictx->operations->snap_protect(
-                     cls::rbd::UserSnapshotNamespace(), snap_name.c_str()));
+                     CEPH_NOSNAP, cls::rbd::UserSnapshotNamespace(),
+                     snap_name));
     }
 
     EXPECT_EQ(0, ictx->state->close());
@@ -184,7 +185,7 @@ public:
     EXPECT_EQ(0, ictx->operations->snap_create(
                    cls::rbd::UserSnapshotNamespace(), "snap1"));
     EXPECT_EQ(0, ictx->operations->snap_protect(
-                   cls::rbd::UserSnapshotNamespace(), "snap1"));
+                   CEPH_NOSNAP, cls::rbd::UserSnapshotNamespace(), "snap1"));
     EXPECT_EQ(0, librbd::snap_set(ictx, cls::rbd::UserSnapshotNamespace(),
                                   "snap1"));
 

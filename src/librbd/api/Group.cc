@@ -261,16 +261,14 @@ int group_snap_remove_by_record(librados::IoCtx& group_ioctx,
     ImageCtx *ictx = ictxs[i];
     on_finishes[i] = new C_SaferCond;
 
-    std::string snap_name;
     ictx->snap_lock.get_read();
     snap_t snap_id = get_group_snap_id(ictx, ne);
-    r = ictx->get_snap_name(snap_id, &snap_name);
     ictx->snap_lock.put_read();
 
-    if (r >= 0) {
+    if (snap_id != CEPH_NOSNAP) {
       ldout(cct, 20) << "removing individual snapshot from image " << ictx->name
                      << dendl;
-      ictx->operations->snap_remove(ne, snap_name, on_finishes[i]);
+      ictx->operations->snap_remove(snap_id, {}, {}, on_finishes[i]);
     } else {
       // We are ok to ignore missing image snapshots. The snapshot could have
       // been inconsistent in the first place.
@@ -853,13 +851,11 @@ remove_image_snaps:
       ind_snap_name << dendl;
 
     on_finishes[i] = new C_SaferCond;
-    std::string snap_name;
     ictx->snap_lock.get_read();
     snap_t snap_id = get_group_snap_id(ictx, ne);
-    r = ictx->get_snap_name(snap_id, &snap_name);
     ictx->snap_lock.put_read();
-    if (r >= 0) {
-      ictx->operations->snap_remove(ne, snap_name.c_str(), on_finishes[i]);
+    if (snap_id != CEPH_NOSNAP) {
+      ictx->operations->snap_remove(snap_id, {}, {}, on_finishes[i]);
     } else {
       // Ignore missing image snapshots. The whole snapshot could have been
       // inconsistent.

@@ -163,8 +163,7 @@ void SnapshotPurgeRequest<I>::snap_unprotect() {
       finish_op_ctx->complete(0);
     });
   RWLock::RLocker owner_locker(m_image_ctx->owner_lock);
-  m_image_ctx->operations->execute_snap_unprotect(
-    m_snap_namespace, m_snap_name.c_str(), ctx);
+  m_image_ctx->operations->execute_snap_unprotect(snap_id, {}, {}, ctx);
 }
 
 template <typename I>
@@ -217,8 +216,7 @@ void SnapshotPurgeRequest<I>::snap_remove() {
       finish_op_ctx->complete(0);
     });
   RWLock::RLocker owner_locker(m_image_ctx->owner_lock);
-  m_image_ctx->operations->execute_snap_remove(
-    m_snap_namespace, m_snap_name.c_str(), ctx);
+  m_image_ctx->operations->execute_snap_remove(snap_id, {}, {}, ctx);
 }
 
 template <typename I>

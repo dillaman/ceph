@@ -49,13 +49,16 @@ public:
   void notify_snap_rename(const snapid_t &src_snap_id,
                           const std::string &dst_snap_name,
                           Context *on_finish);
-  void notify_snap_remove(const cls::rbd::SnapshotNamespace &snap_namespace,
+  void notify_snap_remove(uint64_t snap_id,
+                          const cls::rbd::SnapshotNamespace &snap_namespace,
 			  const std::string &snap_name,
 			  Context *on_finish);
-  void notify_snap_protect(const cls::rbd::SnapshotNamespace &snap_namespace,
+  void notify_snap_protect(uint64_t snap_id,
+                           const cls::rbd::SnapshotNamespace &snap_namespace,
 			   const std::string &snap_name,
 			   Context *on_finish);
-  void notify_snap_unprotect(const cls::rbd::SnapshotNamespace &snap_namespace,
+  void notify_snap_unprotect(uint64_t snap_id,
+                             const cls::rbd::SnapshotNamespace &snap_namespace,
 			     const std::string &snap_name,
 			     Context *on_finish);
   void notify_rebuild_object_map(uint64_t request_id,

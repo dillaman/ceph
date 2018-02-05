@@ -70,7 +70,8 @@ protected:
   }
 
   journal::Event create_event(uint64_t op_tid) const override {
-    return journal::SnapRollbackEvent(op_tid, m_snap_namespace, m_snap_name);
+    return journal::SnapRollbackEvent(op_tid, m_snap_id, m_snap_namespace,
+                                      m_snap_name);
   }
 
 private:

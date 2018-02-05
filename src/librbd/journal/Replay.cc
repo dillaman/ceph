@@ -46,7 +46,8 @@ struct ExecuteOp : public Context {
   }
 
   void execute(const journal::SnapRemoveEvent &_) {
-    image_ctx.operations->execute_snap_remove(event.snap_namespace,
+    image_ctx.operations->execute_snap_remove(event.snap_id,
+                                              event.snap_namespace,
 					      event.snap_name,
                                               on_op_complete);
   }
@@ -58,19 +59,22 @@ struct ExecuteOp : public Context {
   }
 
   void execute(const journal::SnapProtectEvent &_) {
-    image_ctx.operations->execute_snap_protect(event.snap_namespace,
+    image_ctx.operations->execute_snap_protect(event.snap_id,
+                                               event.snap_namespace,
 					       event.snap_name,
                                                on_op_complete);
   }
 
   void execute(const journal::SnapUnprotectEvent &_) {
-    image_ctx.operations->execute_snap_unprotect(event.snap_namespace,
+    image_ctx.operations->execute_snap_unprotect(event.snap_id,
+                                                 event.snap_namespace,
 						 event.snap_name,
                                                  on_op_complete);
   }
 
   void execute(const journal::SnapRollbackEvent &_) {
-    image_ctx.operations->execute_snap_rollback(event.snap_namespace,
+    image_ctx.operations->execute_snap_rollback(event.snap_id,
+                                                event.snap_namespace,
 						event.snap_name,
                                                 no_op_progress_callback,
                                                 on_op_complete);

@@ -39,11 +39,13 @@ public:
       EXPECT_EQ(0, open_image(m_image_name, &ictx));
       if (iter->second) {
 	EXPECT_EQ(0,
-		  ictx->operations->snap_unprotect(cls::rbd::UserSnapshotNamespace(),
+		  ictx->operations->snap_unprotect(CEPH_NOSNAP,
+                                                   cls::rbd::UserSnapshotNamespace(),
 						   iter->first.c_str()));
       }
       EXPECT_EQ(0,
-		ictx->operations->snap_remove(cls::rbd::UserSnapshotNamespace(),
+		ictx->operations->snap_remove(CEPH_NOSNAP,
+                                              cls::rbd::UserSnapshotNamespace(),
 					      iter->first.c_str()));
     }
 
@@ -64,7 +66,9 @@ public:
 
     m_snaps.push_back(std::make_pair(snap_name, snap_protect));
     if (snap_protect) {
-      r = ictx->operations->snap_protect(cls::rbd::UserSnapshotNamespace(), snap_name);
+      r = ictx->operations->snap_protect(CEPH_NOSNAP,
+                                         cls::rbd::UserSnapshotNamespace(),
+                                         snap_name);
       if (r < 0) {
 	return r;
       }
@@ -195,7 +199,8 @@ TEST_F(TestInternal, SnapCreateLocksImage) {
   ASSERT_EQ(0, snap_create(*ictx, "snap1"));
   BOOST_SCOPE_EXIT( (ictx) ) {
     ASSERT_EQ(0,
-	      ictx->operations->snap_remove(cls::rbd::UserSnapshotNamespace(),
+	      ictx->operations->snap_remove(CEPH_NOSNAP,
+                                            cls::rbd::UserSnapshotNamespace(),
 					    "snap1"));
   } BOOST_SCOPE_EXIT_END;
 
@@ -223,7 +228,8 @@ TEST_F(TestInternal, SnapRollbackLocksImage) {
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
 
   librbd::NoOpProgressContext no_op;
-  ASSERT_EQ(0, ictx->operations->snap_rollback(cls::rbd::UserSnapshotNamespace(),
+  ASSERT_EQ(0, ictx->operations->snap_rollback(CEPH_NOSNAP,
+                                               cls::rbd::UserSnapshotNamespace(),
 					       "snap1",
 					       no_op));
 
@@ -244,7 +250,8 @@ TEST_F(TestInternal, SnapRollbackFailsToLockImage) {
 
   librbd::NoOpProgressContext no_op;
   ASSERT_EQ(-EROFS,
-	    ictx->operations->snap_rollback(cls::rbd::UserSnapshotNamespace(),
+	    ictx->operations->snap_rollback(CEPH_NOSNAP,
+                                            cls::rbd::UserSnapshotNamespace(),
 					    "snap1",
 					    no_op));
 }
@@ -581,7 +588,8 @@ TEST_F(TestInternal, SnapshotCopyup)
 
   ASSERT_EQ(0, snap_create(*ictx, "snap1"));
   ASSERT_EQ(0,
-	    ictx->operations->snap_protect(cls::rbd::UserSnapshotNamespace(),
+	    ictx->operations->snap_protect(CEPH_NOSNAP,
+                                           cls::rbd::UserSnapshotNamespace(),
 					   "snap1"));
 
   uint64_t features;
@@ -692,7 +700,8 @@ TEST_F(TestInternal, ResizeCopyup)
 
   ASSERT_EQ(0, snap_create(*ictx, "snap1"));
   ASSERT_EQ(0,
-	    ictx->operations->snap_protect(cls::rbd::UserSnapshotNamespace(),
+	    ictx->operations->snap_protect(CEPH_NOSNAP,
+                                           cls::rbd::UserSnapshotNamespace(),
 					   "snap1"));
 
   std::string clone_name = get_temp_image_name();
@@ -762,7 +771,8 @@ TEST_F(TestInternal, DiscardCopyup)
 
   ASSERT_EQ(0, snap_create(*ictx, "snap1"));
   ASSERT_EQ(0,
-	    ictx->operations->snap_protect(cls::rbd::UserSnapshotNamespace(),
+	    ictx->operations->snap_protect(CEPH_NOSNAP,
+                                           cls::rbd::UserSnapshotNamespace(),
 					   "snap1"));
 
   std::string clone_name = get_temp_image_name();
@@ -918,7 +928,8 @@ TEST_F(TestInternal, WriteFullCopyup) {
   librbd::ImageCtx *ictx2 = NULL;
   BOOST_SCOPE_EXIT( (&m_ioctx) (clone_name) (parent) (&ictx2) ) {
     if (ictx2 != NULL) {
-      ictx2->operations->snap_remove(cls::rbd::UserSnapshotNamespace(),
+      ictx2->operations->snap_remove(CEPH_NOSNAP,
+                                     cls::rbd::UserSnapshotNamespace(),
 				     "snap1");
       parent->close_image(ictx2);
     }
@@ -1006,7 +1017,8 @@ TEST_F(TestInternal, DiffIterateCloneOverwrite) {
   ASSERT_EQ(0, open_image(clone_name, &ictx));
   ASSERT_EQ(0, snap_create(*ictx, "one"));
   ASSERT_EQ(0,
-	    ictx->operations->snap_protect(cls::rbd::UserSnapshotNamespace(),
+	    ictx->operations->snap_protect(CEPH_NOSNAP,
+                                           cls::rbd::UserSnapshotNamespace(),
 					   "one"));
 
   // Simulate a client that doesn't support deep flatten (old librbd / krbd)

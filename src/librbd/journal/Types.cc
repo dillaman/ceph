@@ -242,6 +242,25 @@ void SnapCreateEvent::dump(Formatter *f) const {
   SnapEventBase::dump(f);
 }
 
+void SnapIdEventBase::encode(bufferlist& bl) const {
+  using ceph::encode;
+  SnapEventBase::encode(bl);
+  encode(snap_id, bl);
+}
+
+void SnapIdEventBase::decode(__u8 version, bufferlist::iterator& it) {
+  using ceph::decode;
+  SnapEventBase::decode(version, it);
+  if (version >= 5) {
+    decode(snap_id, it);
+  }
+}
+
+void SnapIdEventBase::dump(Formatter *f) const {
+  f->dump_unsigned("snap_id", snap_id);
+  SnapEventBase::dump(f);
+}
+
 void SnapLimitEvent::encode(bufferlist &bl) const {
   OpEventBase::encode(bl);
   using ceph::encode;
@@ -399,7 +418,7 @@ EventType EventEntry::get_event_type() const {
 }
 
 void EventEntry::encode(bufferlist& bl) const {
-  ENCODE_START(4, 1, bl);
+  ENCODE_START(5, 1, bl);
   boost::apply_visitor(EncodeVisitor(bl), event);
   ENCODE_FINISH(bl);
   encode_metadata(bl);
@@ -516,20 +535,32 @@ void EventEntry::generate_test_instances(std::list<EventEntry *> &o) {
   o.push_back(new EventEntry(SnapCreateEvent(234, cls::rbd::UserSnapshotNamespace(), "snap"), utime_t(1, 1)));
 
   o.push_back(new EventEntry(SnapRemoveEvent()));
-  o.push_back(new EventEntry(SnapRemoveEvent(345, cls::rbd::UserSnapshotNamespace(), "snap"), utime_t(1, 1)));
+  o.push_back(new EventEntry(SnapRemoveEvent(345, 346,
+                                             cls::rbd::UserSnapshotNamespace(),
+                                             "snap"),
+                             utime_t(1, 1)));
 
   o.push_back(new EventEntry(SnapRenameEvent()));
   o.push_back(new EventEntry(SnapRenameEvent(456, 1, "src snap", "dest snap"),
                              utime_t(1, 1)));
 
   o.push_back(new EventEntry(SnapProtectEvent()));
-  o.push_back(new EventEntry(SnapProtectEvent(567, cls::rbd::UserSnapshotNamespace(), "snap"), utime_t(1, 1)));
+  o.push_back(new EventEntry(SnapProtectEvent(567, 568,
+                                              cls::rbd::UserSnapshotNamespace(),
+                                              "snap"),
+                             utime_t(1, 1)));
 
   o.push_back(new EventEntry(SnapUnprotectEvent()));
-  o.push_back(new EventEntry(SnapUnprotectEvent(678, cls::rbd::UserSnapshotNamespace(), "snap"), utime_t(1, 1)));
+  o.push_back(new EventEntry(SnapUnprotectEvent(678, 679,
+                                                cls::rbd::UserSnapshotNamespace(),
+                                                "snap"),
+                             utime_t(1, 1)));
 
   o.push_back(new EventEntry(SnapRollbackEvent()));
-  o.push_back(new EventEntry(SnapRollbackEvent(789, cls::rbd::UserSnapshotNamespace(), "snap"), utime_t(1, 1)));
+  o.push_back(new EventEntry(SnapRollbackEvent(789, 790,
+                                               cls::rbd::UserSnapshotNamespace(),
+                                               "snap"),
+                             utime_t(1, 1)));
 
   o.push_back(new EventEntry(RenameEvent()));
   o.push_back(new EventEntry(RenameEvent(890, "image name"), utime_t(1, 1)));

@@ -232,6 +232,25 @@ void SnapCreatePayload::decode(__u8 version, bufferlist::iterator &iter) {
   }
 }
 
+void SnapIdPayloadBase::encode(bufferlist &bl) const {
+  using ceph::encode;
+  SnapPayloadBase::encode(bl);
+  encode(snap_id, bl);
+}
+
+void SnapIdPayloadBase::decode(__u8 version, bufferlist::iterator &iter) {
+  using ceph::decode;
+  SnapPayloadBase::decode(version, iter);
+  if (version >= 7) {
+    decode(snap_id, iter);
+  }
+}
+
+void SnapIdPayloadBase::dump(Formatter *f) const {
+  f->dump_unsigned("snap_id", snap_id);
+  SnapPayloadBase::dump(f);
+}
+
 void SnapCreatePayload::dump(Formatter *f) const {
   SnapPayloadBase::dump(f);
 }
@@ -299,7 +318,7 @@ bool NotifyMessage::check_for_refresh() const {
 }
 
 void NotifyMessage::encode(bufferlist& bl) const {
-  ENCODE_START(6, 1, bl);
+  ENCODE_START(7, 1, bl);
   boost::apply_visitor(watcher::util::EncodePayloadVisitor(bl), payload);
   ENCODE_FINISH(bl);
 }
@@ -384,9 +403,10 @@ void NotifyMessage::generate_test_instances(std::list<NotifyMessage *> &o) {
   o.push_back(new NotifyMessage(ResizePayload(123, true, AsyncRequestId(ClientId(0, 1), 2))));
   o.push_back(new NotifyMessage(SnapCreatePayload(cls::rbd::UserSnapshotNamespace(),
 						  "foo")));
-  o.push_back(new NotifyMessage(SnapRemovePayload(cls::rbd::UserSnapshotNamespace(), "foo")));
-  o.push_back(new NotifyMessage(SnapProtectPayload(cls::rbd::UserSnapshotNamespace(), "foo")));
-  o.push_back(new NotifyMessage(SnapUnprotectPayload(cls::rbd::UserSnapshotNamespace(), "foo")));
+  o.push_back(new NotifyMessage(SnapRenamePayload(123, "foo")));
+  o.push_back(new NotifyMessage(SnapRemovePayload(124, cls::rbd::UserSnapshotNamespace(), "foo")));
+  o.push_back(new NotifyMessage(SnapProtectPayload(125, cls::rbd::UserSnapshotNamespace(), "foo")));
+  o.push_back(new NotifyMessage(SnapUnprotectPayload(126, cls::rbd::UserSnapshotNamespace(), "foo")));
   o.push_back(new NotifyMessage(RebuildObjectMapPayload(AsyncRequestId(ClientId(0, 1), 2))));
   o.push_back(new NotifyMessage(RenamePayload("foo")));
   o.push_back(new NotifyMessage(UpdateFeaturesPayload(1, true)));

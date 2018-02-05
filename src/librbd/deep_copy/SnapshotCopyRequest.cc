@@ -184,8 +184,8 @@ void SnapshotCopyRequest<I>::send_snap_unprotect() {
       finish_op_ctx->complete(0);
     });
   RWLock::RLocker owner_locker(m_dst_image_ctx->owner_lock);
-  m_dst_image_ctx->operations->execute_snap_unprotect(
-    cls::rbd::UserSnapshotNamespace(), m_snap_name.c_str(), ctx);
+  m_dst_image_ctx->operations->execute_snap_unprotect(m_prev_snap_id, {}, {},
+                                                      ctx);
 }
 
 template <typename I>
@@ -280,8 +280,7 @@ void SnapshotCopyRequest<I>::send_snap_remove() {
       finish_op_ctx->complete(0);
     });
   RWLock::RLocker owner_locker(m_dst_image_ctx->owner_lock);
-  m_dst_image_ctx->operations->execute_snap_remove(
-    cls::rbd::UserSnapshotNamespace(), m_snap_name.c_str(), ctx);
+  m_dst_image_ctx->operations->execute_snap_remove(m_prev_snap_id, {}, {}, ctx);
 }
 
 template <typename I>
@@ -487,8 +486,8 @@ void SnapshotCopyRequest<I>::send_snap_protect() {
       finish_op_ctx->complete(0);
     });
   RWLock::RLocker owner_locker(m_dst_image_ctx->owner_lock);
-  m_dst_image_ctx->operations->execute_snap_protect(
-    cls::rbd::UserSnapshotNamespace(), m_snap_name.c_str(), ctx);
+  m_dst_image_ctx->operations->execute_snap_protect(m_prev_snap_id, {}, {},
+                                                    ctx);
 }
 
 template <typename I>

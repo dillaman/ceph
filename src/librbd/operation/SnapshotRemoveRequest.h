@@ -73,7 +73,8 @@ protected:
   bool should_complete(int r) override;
 
   journal::Event create_event(uint64_t op_tid) const override {
-    return journal::SnapRemoveEvent(op_tid, m_snap_namespace, m_snap_name);
+    return journal::SnapRemoveEvent(op_tid, m_snap_id, m_snap_namespace,
+                                    m_snap_name);
   }
 
 private:

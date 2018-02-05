@@ -89,7 +89,8 @@ int TestFixture::snap_create(librbd::ImageCtx &ictx,
 
 int TestFixture::snap_protect(librbd::ImageCtx &ictx,
                               const std::string &snap_name) {
-  return ictx.operations->snap_protect(cls::rbd::UserSnapshotNamespace(),
+  return ictx.operations->snap_protect(CEPH_NOSNAP,
+                                       cls::rbd::UserSnapshotNamespace(),
                                        snap_name.c_str());
 }
 

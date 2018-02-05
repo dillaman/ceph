@@ -173,7 +173,7 @@ public:
                    cls::rbd::UserSnapshotNamespace{}, "snap"));
     if (is_feature_enabled(RBD_FEATURE_LAYERING)) {
       ASSERT_EQ(0, image_ctx->operations->snap_protect(
-                     cls::rbd::UserSnapshotNamespace{}, "snap"));
+                     CEPH_NOSNAP, cls::rbd::UserSnapshotNamespace{}, "snap"));
 
       C_SaferCond ctx;
       image_ctx->state->snap_set(cls::rbd::UserSnapshotNamespace{}, "snap",

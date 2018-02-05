@@ -123,8 +123,8 @@ public:
   void expect_snap_unprotect(librbd::MockTestImageCtx &mock_image_ctx,
                              const cls::rbd::SnapshotNamespace& ns,
                              const std::string& name, int r) {
-    EXPECT_CALL(*mock_image_ctx.operations, execute_snap_unprotect(ns, name, _))
-      .WillOnce(WithArg<2>(Invoke([this, r](Context* ctx) {
+    EXPECT_CALL(*mock_image_ctx.operations, execute_snap_unprotect(_, ns, name, _))
+      .WillOnce(WithArg<3>(Invoke([this, r](Context* ctx) {
                              m_threads->work_queue->queue(ctx, r);
                            })));
   }
@@ -132,8 +132,8 @@ public:
   void expect_snap_remove(librbd::MockTestImageCtx &mock_image_ctx,
                           const cls::rbd::SnapshotNamespace& ns,
                           const std::string& name, int r) {
-    EXPECT_CALL(*mock_image_ctx.operations, execute_snap_remove(ns, name, _))
-      .WillOnce(WithArg<2>(Invoke([this, r](Context* ctx) {
+    EXPECT_CALL(*mock_image_ctx.operations, execute_snap_remove(_, ns, name, _))
+      .WillOnce(WithArg<3>(Invoke([this, r](Context* ctx) {
                              m_threads->work_queue->queue(ctx, r);
                            })));
   }

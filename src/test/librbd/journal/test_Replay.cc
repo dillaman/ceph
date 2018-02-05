@@ -313,8 +313,8 @@ TEST_F(TestJournalReplay, SnapCreate) {
   get_journal_commit_position(ictx, &initial_tag, &initial_entry);
 
   // inject snapshot ops into journal
-  inject_into_journal(ictx, librbd::journal::SnapCreateEvent(1, cls::rbd::UserSnapshotNamespace(),
-							       "snap"));
+  inject_into_journal(ictx, librbd::journal::SnapCreateEvent(
+                              1, cls::rbd::UserSnapshotNamespace(), "snap"));
   inject_into_journal(ictx, librbd::journal::OpFinishEvent(1, 0));
   close_image(ictx);
 
@@ -356,10 +356,9 @@ TEST_F(TestJournalReplay, SnapProtect) {
   get_journal_commit_position(ictx, &initial_tag, &initial_entry);
 
   // inject snapshot ops into journal
-  inject_into_journal(ictx,
-		      librbd::journal::SnapProtectEvent(1,
-							cls::rbd::UserSnapshotNamespace(),
-							"snap"));
+  inject_into_journal(ictx, librbd::journal::SnapProtectEvent(
+                              1, CEPH_NOSNAP, cls::rbd::UserSnapshotNamespace(),
+                              "snap"));
   inject_into_journal(ictx, librbd::journal::OpFinishEvent(1, 0));
   close_image(ictx);
 
@@ -380,7 +379,8 @@ TEST_F(TestJournalReplay, SnapProtect) {
   // verify lock ordering constraints
   ASSERT_EQ(0, ictx->operations->snap_create(cls::rbd::UserSnapshotNamespace(),
 					     "snap2"));
-  ASSERT_EQ(0, ictx->operations->snap_protect(cls::rbd::UserSnapshotNamespace(),
+  ASSERT_EQ(0, ictx->operations->snap_protect(CEPH_NOSNAP,
+                                              cls::rbd::UserSnapshotNamespace(),
 					      "snap2"));
 }
 
@@ -400,7 +400,8 @@ TEST_F(TestJournalReplay, SnapUnprotect) {
     snap_id = ictx->get_snap_id(cls::rbd::UserSnapshotNamespace(), "snap");
     ASSERT_NE(CEPH_NOSNAP, snap_id);
   }
-  ASSERT_EQ(0, ictx->operations->snap_protect(cls::rbd::UserSnapshotNamespace(),
+  ASSERT_EQ(0, ictx->operations->snap_protect(CEPH_NOSNAP,
+                                              cls::rbd::UserSnapshotNamespace(),
 					      "snap"));
 
   // get current commit position
@@ -409,10 +410,9 @@ TEST_F(TestJournalReplay, SnapUnprotect) {
   get_journal_commit_position(ictx, &initial_tag, &initial_entry);
 
   // inject snapshot ops into journal
-  inject_into_journal(ictx,
-	librbd::journal::SnapUnprotectEvent(1,
-					    cls::rbd::UserSnapshotNamespace(),
-					    "snap"));
+  inject_into_journal(ictx, librbd::journal::SnapUnprotectEvent(
+                              1, CEPH_NOSNAP, cls::rbd::UserSnapshotNamespace(),
+                              "snap"));
   inject_into_journal(ictx, librbd::journal::OpFinishEvent(1, 0));
   close_image(ictx);
 
@@ -433,9 +433,11 @@ TEST_F(TestJournalReplay, SnapUnprotect) {
   // verify lock ordering constraints
   ASSERT_EQ(0, ictx->operations->snap_create(cls::rbd::UserSnapshotNamespace(),
 					     "snap2"));
-  ASSERT_EQ(0, ictx->operations->snap_protect(cls::rbd::UserSnapshotNamespace(),
+  ASSERT_EQ(0, ictx->operations->snap_protect(CEPH_NOSNAP,
+                                              cls::rbd::UserSnapshotNamespace(),
 					      "snap2"));
-  ASSERT_EQ(0, ictx->operations->snap_unprotect(cls::rbd::UserSnapshotNamespace(),
+  ASSERT_EQ(0, ictx->operations->snap_unprotect(CEPH_NOSNAP,
+                                                cls::rbd::UserSnapshotNamespace(),
 						"snap2"));
 }
 
@@ -505,10 +507,9 @@ TEST_F(TestJournalReplay, SnapRollback) {
   get_journal_commit_position(ictx, &initial_tag, &initial_entry);
 
   // inject snapshot ops into journal
-  inject_into_journal(ictx,
-	  librbd::journal::SnapRollbackEvent(1,
-					     cls::rbd::UserSnapshotNamespace(),
-					     "snap"));
+  inject_into_journal(ictx, librbd::journal::SnapRollbackEvent(
+                              1, CEPH_NOSNAP, cls::rbd::UserSnapshotNamespace(),
+                              "snap"));
   inject_into_journal(ictx, librbd::journal::OpFinishEvent(1, 0));
   close_image(ictx);
 
@@ -524,7 +525,8 @@ TEST_F(TestJournalReplay, SnapRollback) {
 
   // verify lock ordering constraints
   librbd::NoOpProgressContext no_op_progress;
-  ASSERT_EQ(0, ictx->operations->snap_rollback(cls::rbd::UserSnapshotNamespace(),
+  ASSERT_EQ(0, ictx->operations->snap_rollback(CEPH_NOSNAP,
+                                               cls::rbd::UserSnapshotNamespace(),
 					       "snap",
 					       no_op_progress));
 }
@@ -546,10 +548,9 @@ TEST_F(TestJournalReplay, SnapRemove) {
   get_journal_commit_position(ictx, &initial_tag, &initial_entry);
 
   // inject snapshot ops into journal
-  inject_into_journal(ictx,
-	  librbd::journal::SnapRemoveEvent(1,
-					   cls::rbd::UserSnapshotNamespace(),
-					   "snap"));
+  inject_into_journal(ictx, librbd::journal::SnapRemoveEvent(
+                              1, CEPH_NOSNAP, cls::rbd::UserSnapshotNamespace(),
+                              "snap"));
   inject_into_journal(ictx, librbd::journal::OpFinishEvent(1, 0));
   close_image(ictx);
 
@@ -573,7 +574,8 @@ TEST_F(TestJournalReplay, SnapRemove) {
   // verify lock ordering constraints
   ASSERT_EQ(0, ictx->operations->snap_create(cls::rbd::UserSnapshotNamespace(),
 					     "snap"));
-  ASSERT_EQ(0, ictx->operations->snap_remove(cls::rbd::UserSnapshotNamespace(),
+  ASSERT_EQ(0, ictx->operations->snap_remove(CEPH_NOSNAP,
+                                             cls::rbd::UserSnapshotNamespace(),
 					     "snap"));
 }
 
@@ -651,7 +653,8 @@ TEST_F(TestJournalReplay, Flatten) {
   ASSERT_EQ(0, open_image(m_image_name, &ictx));
   ASSERT_EQ(0, ictx->operations->snap_create(cls::rbd::UserSnapshotNamespace(),
 					     "snap"));
-  ASSERT_EQ(0, ictx->operations->snap_protect(cls::rbd::UserSnapshotNamespace(),
+  ASSERT_EQ(0, ictx->operations->snap_protect(CEPH_NOSNAP,
+                                              cls::rbd::UserSnapshotNamespace(),
 					      "snap"));
 
   std::string clone_name = get_temp_image_name();
@@ -682,7 +685,8 @@ TEST_F(TestJournalReplay, Flatten) {
   get_journal_commit_position(ictx2, &current_tag, &current_entry);
   ASSERT_EQ(initial_tag + 1, current_tag);
   ASSERT_EQ(1, current_entry);
-  ASSERT_EQ(0, ictx->operations->snap_unprotect(cls::rbd::UserSnapshotNamespace(),
+  ASSERT_EQ(0, ictx->operations->snap_unprotect(CEPH_NOSNAP,
+                                                cls::rbd::UserSnapshotNamespace(),
 						"snap"));
 
   // verify lock ordering constraints

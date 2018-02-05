@@ -1657,7 +1657,9 @@ bool compare_by_name(const child_info_t& c1, const child_info_t& c2)
     }
 
     if (is_protected && flags & RBD_SNAP_REMOVE_UNPROTECT) {
-      r = ictx->operations->snap_unprotect(cls::rbd::UserSnapshotNamespace(), snap_name);
+      r = ictx->operations->snap_unprotect(CEPH_NOSNAP,
+                                           cls::rbd::UserSnapshotNamespace(),
+                                           snap_name);
       if (r < 0) {
 	lderr(ictx->cct) << "failed to unprotect snapshot: " << snap_name << dendl;
 	return r;
@@ -1668,13 +1670,16 @@ bool compare_by_name(const child_info_t& c1, const child_info_t& c2)
 	return r;
       }
       if (is_protected) {
-	lderr(ictx->cct) << "snapshot is still protected after unprotection" << dendl;
+	lderr(ictx->cct) << "snapshot is still protected after unprotection"
+                         << dendl;
 	ceph_abort();
       }
     }
 
     C_SaferCond ctx;
-    ictx->operations->snap_remove(cls::rbd::UserSnapshotNamespace(), snap_name, &ctx);
+    ictx->operations->snap_remove(CEPH_NOSNAP,
+                                  cls::rbd::UserSnapshotNamespace(), snap_name,
+                                  &ctx);
 
     r = ctx.wait();
     return r;

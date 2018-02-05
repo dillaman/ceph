@@ -214,36 +214,42 @@ void ImageWatcher<I>::notify_snap_rename(const snapid_t &src_snap_id,
 }
 
 template <typename I>
-void ImageWatcher<I>::notify_snap_remove(const cls::rbd::SnapshotNamespace &snap_namespace,
+void ImageWatcher<I>::notify_snap_remove(uint64_t snap_id,
+                                         const cls::rbd::SnapshotNamespace &snap_namespace,
 					 const std::string &snap_name,
                                          Context *on_finish) {
   assert(m_image_ctx.owner_lock.is_locked());
   assert(m_image_ctx.exclusive_lock &&
          !m_image_ctx.exclusive_lock->is_lock_owner());
 
-  notify_lock_owner(SnapRemovePayload(snap_namespace, snap_name), on_finish);
+  notify_lock_owner(SnapRemovePayload(snap_id, snap_namespace, snap_name),
+                    on_finish);
 }
 
 template <typename I>
-void ImageWatcher<I>::notify_snap_protect(const cls::rbd::SnapshotNamespace &snap_namespace,
+void ImageWatcher<I>::notify_snap_protect(uint64_t snap_id,
+                                          const cls::rbd::SnapshotNamespace &snap_namespace,
 					  const std::string &snap_name,
                                           Context *on_finish) {
   assert(m_image_ctx.owner_lock.is_locked());
   assert(m_image_ctx.exclusive_lock &&
          !m_image_ctx.exclusive_lock->is_lock_owner());
 
-  notify_lock_owner(SnapProtectPayload(snap_namespace, snap_name), on_finish);
+  notify_lock_owner(SnapProtectPayload(snap_id, snap_namespace, snap_name),
+                    on_finish);
 }
 
 template <typename I>
-void ImageWatcher<I>::notify_snap_unprotect(const cls::rbd::SnapshotNamespace &snap_namespace,
+void ImageWatcher<I>::notify_snap_unprotect(uint64_t snap_id,
+                                            const cls::rbd::SnapshotNamespace &snap_namespace,
 					    const std::string &snap_name,
                                             Context *on_finish) {
   assert(m_image_ctx.owner_lock.is_locked());
   assert(m_image_ctx.exclusive_lock &&
          !m_image_ctx.exclusive_lock->is_lock_owner());
 
-  notify_lock_owner(SnapUnprotectPayload(snap_namespace, snap_name), on_finish);
+  notify_lock_owner(SnapUnprotectPayload(snap_id, snap_namespace, snap_name),
+                    on_finish);
 }
 
 template <typename I>
@@ -790,7 +796,8 @@ bool ImageWatcher<I>::handle_payload(const SnapRemovePayload &payload,
       ldout(m_image_ctx.cct, 10) << this << " remote snap_remove request: "
 			         << payload.snap_name << dendl;
 
-      m_image_ctx.operations->execute_snap_remove(payload.snap_namespace,
+      m_image_ctx.operations->execute_snap_remove(payload.snap_id,
+                                                  payload.snap_namespace,
 						  payload.snap_name,
                                                   new C_ResponseMessage(ack_ctx));
       return false;
@@ -811,7 +818,8 @@ bool ImageWatcher<I>::handle_payload(const SnapProtectPayload& payload,
       ldout(m_image_ctx.cct, 10) << this << " remote snap_protect request: "
                                  << payload.snap_name << dendl;
 
-      m_image_ctx.operations->execute_snap_protect(payload.snap_namespace,
+      m_image_ctx.operations->execute_snap_protect(payload.snap_id,
+                                                   payload.snap_namespace,
 						   payload.snap_name,
                                                    new C_ResponseMessage(ack_ctx));
       return false;
@@ -832,7 +840,8 @@ bool ImageWatcher<I>::handle_payload(const SnapUnprotectPayload& payload,
       ldout(m_image_ctx.cct, 10) << this << " remote snap_unprotect request: "
                                  << payload.snap_name << dendl;
 
-      m_image_ctx.operations->execute_snap_unprotect(payload.snap_namespace,
+      m_image_ctx.operations->execute_snap_unprotect(payload.snap_id,
+                                                     payload.snap_namespace,
 						     payload.snap_name,
                                                      new C_ResponseMessage(ack_ctx));
       return false;

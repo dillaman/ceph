@@ -226,40 +226,58 @@ struct SnapRenamePayload : public SnapPayloadBase {
   SnapRenamePayload() {}
   SnapRenamePayload(const uint64_t &src_snap_id,
 		    const std::string &dst_name)
-    : SnapPayloadBase(cls::rbd::UserSnapshotNamespace(), dst_name), snap_id(src_snap_id) {}
+    : SnapPayloadBase(cls::rbd::UserSnapshotNamespace(), dst_name),
+      snap_id(src_snap_id) {}
 
-  uint64_t snap_id = 0;
+  uint64_t snap_id = CEPH_NOSNAP;
 
   void encode(bufferlist &bl) const;
   void decode(__u8 version, bufferlist::iterator &iter);
   void dump(Formatter *f) const;
 };
 
-struct SnapRemovePayload : public SnapPayloadBase {
+struct SnapIdPayloadBase : public SnapPayloadBase {
+  SnapIdPayloadBase() {}
+  SnapIdPayloadBase(uint64_t snap_id,
+                    const cls::rbd::SnapshotNamespace& snap_namespace,
+		    const std::string &name)
+    : SnapPayloadBase(snap_namespace, name), snap_id(snap_id) {}
+
+  uint64_t snap_id = CEPH_NOSNAP;
+
+  void encode(bufferlist &bl) const;
+  void decode(__u8 version, bufferlist::iterator &iter);
+  void dump(Formatter *f) const;
+};
+
+struct SnapRemovePayload : public SnapIdPayloadBase {
   static const NotifyOp NOTIFY_OP = NOTIFY_OP_SNAP_REMOVE;
 
   SnapRemovePayload() {}
-  SnapRemovePayload(const cls::rbd::SnapshotNamespace& snap_namespace,
+  SnapRemovePayload(uint64_t snap_id,
+                    const cls::rbd::SnapshotNamespace& snap_namespace,
 		    const std::string &name)
-    : SnapPayloadBase(snap_namespace, name) {}
+    : SnapIdPayloadBase(snap_id, snap_namespace, name) {}
 };
 
-struct SnapProtectPayload : public SnapPayloadBase {
+struct SnapProtectPayload : public SnapIdPayloadBase {
   static const NotifyOp NOTIFY_OP = NOTIFY_OP_SNAP_PROTECT;
 
   SnapProtectPayload() {}
-  SnapProtectPayload(const cls::rbd::SnapshotNamespace& snap_namespace,
+  SnapProtectPayload(uint64_t snap_id,
+                     const cls::rbd::SnapshotNamespace& snap_namespace,
 		     const std::string &name)
-    : SnapPayloadBase(snap_namespace, name) {}
+    : SnapIdPayloadBase(snap_id, snap_namespace, name) {}
 };
 
-struct SnapUnprotectPayload : public SnapPayloadBase {
+struct SnapUnprotectPayload : public SnapIdPayloadBase {
   static const NotifyOp NOTIFY_OP = NOTIFY_OP_SNAP_UNPROTECT;
 
   SnapUnprotectPayload() {}
-  SnapUnprotectPayload(const cls::rbd::SnapshotNamespace& snap_namespace,
+  SnapUnprotectPayload(uint64_t snap_id,
+                       const cls::rbd::SnapshotNamespace& snap_namespace,
 		       const std::string &name)
-    : SnapPayloadBase(snap_namespace, name) {}
+    : SnapIdPayloadBase(snap_id, snap_namespace, name) {}
 };
 
 struct RebuildObjectMapPayload : public AsyncRequestPayloadBase {

@@ -110,7 +110,8 @@ void SyncPointPruneRequest<I>::send_remove_snap() {
   Context *ctx = create_context_callback<
     SyncPointPruneRequest<I>, &SyncPointPruneRequest<I>::handle_remove_snap>(
       this);
-  m_remote_image_ctx->operations->snap_remove(cls::rbd::UserSnapshotNamespace(),
+  m_remote_image_ctx->operations->snap_remove({},
+                                              cls::rbd::UserSnapshotNamespace(),
 					      snap_name.c_str(),
 					      ctx);
 }

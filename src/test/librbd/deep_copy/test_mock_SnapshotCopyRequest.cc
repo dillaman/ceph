@@ -169,24 +169,24 @@ public:
 
   void expect_snap_remove(librbd::MockTestImageCtx &mock_image_ctx,
                           const std::string &snap_name, int r) {
-    EXPECT_CALL(*mock_image_ctx.operations, execute_snap_remove(_, StrEq(snap_name), _))
-                  .WillOnce(WithArg<2>(Invoke([this, r](Context *ctx) {
+    EXPECT_CALL(*mock_image_ctx.operations, execute_snap_remove(_, _, StrEq(snap_name), _))
+                  .WillOnce(WithArg<3>(Invoke([this, r](Context *ctx) {
                               m_work_queue->queue(ctx, r);
                             })));
   }
 
   void expect_snap_protect(librbd::MockTestImageCtx &mock_image_ctx,
                            const std::string &snap_name, int r) {
-    EXPECT_CALL(*mock_image_ctx.operations, execute_snap_protect(_, StrEq(snap_name), _))
-                  .WillOnce(WithArg<2>(Invoke([this, r](Context *ctx) {
+    EXPECT_CALL(*mock_image_ctx.operations, execute_snap_protect(_, _, StrEq(snap_name), _))
+                  .WillOnce(WithArg<3>(Invoke([this, r](Context *ctx) {
                               m_work_queue->queue(ctx, r);
                             })));
   }
 
   void expect_snap_unprotect(librbd::MockTestImageCtx &mock_image_ctx,
                              const std::string &snap_name, int r) {
-    EXPECT_CALL(*mock_image_ctx.operations, execute_snap_unprotect(_, StrEq(snap_name), _))
-                  .WillOnce(WithArg<2>(Invoke([this, r](Context *ctx) {
+    EXPECT_CALL(*mock_image_ctx.operations, execute_snap_unprotect(_, _, StrEq(snap_name), _))
+                  .WillOnce(WithArg<3>(Invoke([this, r](Context *ctx) {
                               m_work_queue->queue(ctx, r);
                             })));
   }
@@ -236,7 +236,8 @@ public:
     }
 
     if (protect) {
-      r = image_ctx->operations->snap_protect(cls::rbd::UserSnapshotNamespace(),
+      r = image_ctx->operations->snap_protect(CEPH_NOSNAP,
+                                              cls::rbd::UserSnapshotNamespace(),
 					      snap_name.c_str());
       if (r < 0) {
         return r;
@@ -550,11 +551,11 @@ TEST_F(TestMockDeepCopySnapshotCopyRequest, SnapUnprotectCancel) {
   expect_snap_is_unprotected(mock_src_image_ctx, src_snap_id1, true, 0);
   expect_start_op(mock_exclusive_lock);
   EXPECT_CALL(*mock_dst_image_ctx.operations,
-	      execute_snap_unprotect(_, StrEq("snap1"), _))
+	      execute_snap_unprotect(_, _, StrEq("snap1"), _))
     .WillOnce(DoAll(InvokeWithoutArgs([request]() {
 	    request->cancel();
 	  }),
-	WithArg<2>(Invoke([this](Context *ctx) {
+	WithArg<3>(Invoke([this](Context *ctx) {
 	    m_work_queue->queue(ctx, 0);
 	    }))));
 
@@ -754,11 +755,11 @@ TEST_F(TestMockDeepCopySnapshotCopyRequest, SnapProtectCancel) {
   expect_snap_is_protected(mock_dst_image_ctx, dst_snap_id1, false, 0);
   expect_start_op(mock_exclusive_lock);
   EXPECT_CALL(*mock_dst_image_ctx.operations,
-	      execute_snap_protect(_, StrEq("snap1"), _))
+	      execute_snap_protect(_, _, StrEq("snap1"), _))
     .WillOnce(DoAll(InvokeWithoutArgs([request]() {
 	    request->cancel();
 	  }),
-	WithArg<2>(Invoke([this](Context *ctx) {
+	WithArg<3>(Invoke([this](Context *ctx) {
 	      m_work_queue->queue(ctx, 0);
 	    }))));
 

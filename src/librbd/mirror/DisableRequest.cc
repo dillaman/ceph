@@ -315,7 +315,8 @@ void DisableRequest<I>::send_remove_snap(const std::string &client_id,
 
   ctx = new FunctionContext([this, snap_namespace, snap_name, ctx](int r) {
       RWLock::WLocker owner_locker(m_image_ctx->owner_lock);
-      m_image_ctx->operations->execute_snap_remove(snap_namespace,
+      m_image_ctx->operations->execute_snap_remove({},
+                                                   snap_namespace,
 						   snap_name.c_str(),
 						   ctx);
     });
