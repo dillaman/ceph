@@ -89,7 +89,8 @@ void TestFixture::TearDown() {
 int TestFixture::create_image(librbd::RBD &rbd, librados::IoCtx &ioctx,
                               const std::string &name, uint64_t size) {
   int order = 18;
-  return rbd.create2(ioctx, name.c_str(), size, RBD_FEATURES_ALL, &order);
+  uint64_t features = RBD_FEATURES_ALL & ~RBD_FEATURES_IMPLICIT_ENABLE;
+  return rbd.create2(ioctx, name.c_str(), size, features, &order);
 }
 
 int TestFixture::open_image(librados::IoCtx &io_ctx,
