@@ -12,6 +12,7 @@
 #include "librbd/ImageCtx.h"
 #include "librbd/ObjectMap.h"
 #include "librbd/Utils.h"
+#include "librbd/deep_copy/ObjectCopyRequest.h"
 #include "librbd/io/AioCompletion.h"
 #include "librbd/io/ImageRequest.h"
 #include "librbd/io/ObjectRequest.h"
@@ -207,9 +208,44 @@ bool CopyupRequest<I>::is_copyup_required() {
 }
 
 template <typename I>
+bool CopyupRequest<I>::is_update_object_map_required() {
+  RWLock::RLocker owner_locker(m_ictx->owner_lock);
+  RWLock::RLocker snap_locker(m_ictx->snap_lock);
+  if (m_ictx->object_map == nullptr) {
+    return false;
+  }
+
+  if (!is_deep_copy()) {
+    return false;
+  }
+
+  auto it = m_ictx->migration_info.snap_map.find(CEPH_NOSNAP);
+  assert(it != m_ictx->migration_info.snap_map.end());
+  return it->second[0] != CEPH_NOSNAP;
+}
+
+template <typename I>
+bool CopyupRequest<I>::is_deep_copy() const {
+  return !m_ictx->migration_info.empty() &&
+    m_ictx->migration_info.snap_map.size() > 1;
+}
+
+template <typename I>
 void CopyupRequest<I>::send()
 {
   m_state = STATE_READ_FROM_PARENT;
+
+  if (is_deep_copy()) {
+    auto req = deep_copy::ObjectCopyRequest<I>::create(
+        m_ictx->parent, m_ictx, m_ictx->migration_info.snap_map, m_object_no,
+        util::create_context_callback(this));
+    ldout(m_ictx->cct, 20) << "deep copy object req " << req
+                           << ", object_no " << m_object_no
+                           << dendl;
+    req->send();
+    return;
+  }
+
   AioCompletion *comp = AioCompletion::create_and_start(
     this, m_ictx, AIO_TYPE_READ);
 
@@ -243,8 +279,8 @@ bool CopyupRequest<I>::should_complete(int r)
     ldout(cct, 20) << "READ_FROM_PARENT" << dendl;
     remove_from_list();
     if (r >= 0 || r == -ENOENT) {
-      if (!is_copyup_required()) {
-        ldout(cct, 20) << "nop, skipping" << dendl;
+      if (!is_copyup_required() && !is_update_object_map_required()) {
+        ldout(cct, 20) << "skipping" << dendl;
         return true;
       }
 
@@ -260,6 +296,10 @@ bool CopyupRequest<I>::should_complete(int r)
   case STATE_OBJECT_MAP:
     ldout(cct, 20) << "OBJECT_MAP" << dendl;
     assert(r == 0);
+    if (!is_copyup_required()) {
+      ldout(cct, 20) << "skipping copyup" << dendl;
+      return true;
+    }
     return send_copyup();
 
   case STATE_COPYUP:

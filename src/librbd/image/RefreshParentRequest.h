@@ -20,8 +20,10 @@ class RefreshParentRequest {
 public:
   static RefreshParentRequest *create(ImageCtxT &child_image_ctx,
                                       const ParentInfo &parent_md,
+                                      const MigrationInfo &migration_info,
                                       Context *on_finish) {
-    return new RefreshParentRequest(child_image_ctx, parent_md, on_finish);
+    return new RefreshParentRequest(child_image_ctx, parent_md, migration_info,
+                                    on_finish);
   }
 
   static bool is_refresh_required(ImageCtxT &child_image_ctx,
@@ -59,10 +61,11 @@ private:
    */
 
   RefreshParentRequest(ImageCtxT &child_image_ctx, const ParentInfo &parent_md,
-                       Context *on_finish);
+                       const MigrationInfo &migration_info, Context *on_finish);
 
   ImageCtxT &m_child_image_ctx;
   ParentInfo m_parent_md;
+  MigrationInfo m_migration_info;
   Context *m_on_finish;
 
   ImageCtxT *m_parent_image_ctx;
@@ -74,6 +77,8 @@ private:
                                 const ParentInfo &parent_md);
   static bool is_open_required(ImageCtxT &child_image_ctx,
                                const ParentInfo &parent_md);
+  static bool does_parent_exist(ImageCtxT &child_image_ctx,
+                                const ParentInfo &parent_md);
 
   void send_open_parent();
   Context *handle_open_parent(int *result);
