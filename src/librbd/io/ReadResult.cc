@@ -96,10 +96,10 @@ void ReadResult::C_ImageReadRequest::finish(int r) {
     }
     assert(length == bl.length());
 
-    aio_completion->lock.Lock();
+    aio_completion->lock.lock();
     aio_completion->read_result.m_destriper.add_partial_result(
       cct, bl, image_extents);
-    aio_completion->lock.Unlock();
+    aio_completion->lock.unlock();
     r = length;
   }
 
@@ -132,10 +132,10 @@ void ReadResult::C_ObjectReadRequest::finish(int r) {
       extent_map[object_off] = bl.length();
     }
 
-    aio_completion->lock.Lock();
+    aio_completion->lock.lock();
     aio_completion->read_result.m_destriper.add_partial_sparse_result(
       cct, bl, extent_map, object_off, buffer_extents);
-    aio_completion->lock.Unlock();
+    aio_completion->lock.unlock();
 
     r = object_len;
   }

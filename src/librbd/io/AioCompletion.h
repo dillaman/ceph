@@ -4,8 +4,6 @@
 #ifndef CEPH_LIBRBD_IO_AIO_COMPLETION_H
 #define CEPH_LIBRBD_IO_AIO_COMPLETION_H
 
-#include "common/Cond.h"
-#include "common/Mutex.h"
 #include "common/ceph_time.h"
 #include "include/Context.h"
 #include "include/utime.h"
@@ -15,7 +13,9 @@
 #include "librbd/io/AsyncOperation.h"
 #include "librbd/io/ReadResult.h"
 #include "librbd/io/Types.h"
-
+#include <atomic>
+#include <condition_variable>
+#include <mutex>
 class CephContext;
 
 namespace librbd {
@@ -42,17 +42,20 @@ struct AioCompletion {
     AIO_STATE_COMPLETE,
   } aio_state_t;
 
-  mutable Mutex lock;
-  Cond cond;
+  mutable std::mutex lock;
+  std::condition_variable cond;
+
   aio_state_t state;
-  ssize_t rval;
   callback_t complete_cb;
   void *complete_arg;
   rbd_completion_t rbd_comp;
-  uint32_t pending_count;   ///< number of requests
-  uint32_t blockers;
-  int ref;
-  bool released;
+
+  std::atomic<ssize_t> rval{0};
+  std::atomic<int> error_rval{0};
+  std::atomic<uint32_t> ref{1};
+  std::atomic<uint32_t> pending_count{0};   ///< number of requests
+  std::atomic<bool> released{false};
+
   ImageCtx *ictx;
   coarse_mono_time start_time;
   aio_type_t aio_type;
@@ -103,13 +106,10 @@ struct AioCompletion {
     return comp;
   }
 
-  AioCompletion() : lock("AioCompletion::lock", true, false),
-                    state(AIO_STATE_PENDING), rval(0), complete_cb(NULL),
-                    complete_arg(NULL), rbd_comp(NULL),
-                    pending_count(0), blockers(1),
-                    ref(1), released(false), ictx(NULL),
-                    aio_type(AIO_TYPE_NONE), m_xlist_item(this),
-                    event_notify(false) {
+  AioCompletion() : state(AIO_STATE_PENDING), complete_cb(NULL),
+                    complete_arg(NULL), rbd_comp(NULL), ictx(NULL),
+                    aio_type(AIO_TYPE_NONE),
+                    m_xlist_item(this), event_notify(false) {
   }
 
   ~AioCompletion() {
@@ -117,14 +117,14 @@ struct AioCompletion {
 
   int wait_for_complete();
 
-  void finalize(ssize_t rval);
+  void finalize();
 
   inline bool is_initialized(aio_type_t type) const {
-    Mutex::Locker locker(lock);
+    std::unique_lock<std::mutex> locker(lock);
     return ((ictx != nullptr) && (aio_type == type));
   }
   inline bool is_started() const {
-    Mutex::Locker locker(lock);
+    std::unique_lock<std::mutex> locker(lock);
     return async_op.started();
   }
 
@@ -141,10 +141,8 @@ struct AioCompletion {
 
   void set_request_count(uint32_t num);
   void add_request() {
-    lock.Lock();
     assert(pending_count > 0);
-    lock.Unlock();
-    get();
+    ++ref;
   }
   void complete_request(ssize_t r);
 
@@ -153,32 +151,26 @@ struct AioCompletion {
   ssize_t get_return_value();
 
   void get() {
-    lock.Lock();
     assert(ref > 0);
-    ref++;
-    lock.Unlock();
+    ++ref;
   }
   void release() {
-    lock.Lock();
-    assert(!released);
-    released = true;
-    put_unlock();
+    bool previous_released = released.exchange(true);
+    assert(!previous_released);
+    put();
   }
   void put() {
-    lock.Lock();
-    put_unlock();
-  }
-  void put_unlock() {
-    assert(ref > 0);
-    int n = --ref;
-    lock.Unlock();
-    if (!n) {
-      if (ictx) {
+    uint32_t previous_ref = ref--;
+    assert(previous_ref > 0);
+
+    if (previous_ref == 1) {
+      if (ictx != nullptr) {
         if (event_notify) {
           ictx->completed_reqs_lock.Lock();
           m_xlist_item.remove_myself();
           ictx->completed_reqs_lock.Unlock();
         }
+
         if (aio_type == AIO_TYPE_CLOSE ||
             (aio_type == AIO_TYPE_OPEN && rval < 0)) {
           delete ictx;
@@ -188,22 +180,8 @@ struct AioCompletion {
     }
   }
 
-  void block() {
-    Mutex::Locker l(lock);
-    ++blockers;
-  }
-  void unblock() {
-    Mutex::Locker l(lock);
-    assert(blockers > 0);
-    --blockers;
-    if (pending_count == 0 && blockers == 0) {
-      finalize(rval);
-      complete();
-    }
-  }
-
   void set_event_notify(bool s) {
-    Mutex::Locker l(lock);
+    std::unique_lock<std::mutex> locker(lock);
     event_notify = s;
   }
 

@@ -31,31 +31,32 @@ namespace io {
 
 int AioCompletion::wait_for_complete() {
   tracepoint(librbd, aio_wait_for_complete_enter, this);
-  lock.Lock();
-  while (state != AIO_STATE_COMPLETE)
-    cond.Wait(lock);
-  lock.Unlock();
+  {
+    std::unique_lock<std::mutex> locker(lock);
+    while (state != AIO_STATE_COMPLETE) {
+      cond.wait(locker);
+    }
+  }
   tracepoint(librbd, aio_wait_for_complete_exit, 0);
   return 0;
 }
 
-void AioCompletion::finalize(ssize_t rval)
-{
-  assert(lock.is_locked());
+void AioCompletion::finalize() {
   assert(ictx != nullptr);
   CephContext *cct = ictx->cct;
 
-  ldout(cct, 20) << "r=" << rval << dendl;
-  if (rval >= 0 && aio_type == AIO_TYPE_READ) {
+  ssize_t r = (error_rval < 0 ? error_rval : rval);
+  ldout(cct, 20) << "r=" << r << dendl;
+  if (r >= 0 && aio_type == AIO_TYPE_READ) {
     read_result.assemble_result(cct);
   }
 }
 
 void AioCompletion::complete() {
-  assert(lock.is_locked());
   assert(ictx != nullptr);
   CephContext *cct = ictx->cct;
 
+  ssize_t r = (error_rval < 0 ? error_rval : rval);
   tracepoint(librbd, aio_complete_enter, this, rval);
   if (ictx->perfcounter != nullptr) {
     ceph::timespan elapsed = coarse_mono_clock::now() - start_time;
@@ -84,10 +85,9 @@ void AioCompletion::complete() {
 
   state = AIO_STATE_CALLBACK;
   if (complete_cb) {
-    lock.Unlock();
     complete_cb(rbd_comp, complete_arg);
-    lock.Lock();
   }
+  state = AIO_STATE_COMPLETE;
 
   if (event_notify && ictx->event_socket.is_valid()) {
     ictx->completed_reqs_lock.Lock();
@@ -96,8 +96,10 @@ void AioCompletion::complete() {
     ictx->event_socket.notify();
   }
 
-  state = AIO_STATE_COMPLETE;
-  cond.Signal();
+  {
+    std::unique_lock<std::mutex> locker(lock);
+    cond.notify_all();
+  }
 
   // note: possible for image to be closed after op marked finished
   if (async_op.started()) {
@@ -107,7 +109,6 @@ void AioCompletion::complete() {
 }
 
 void AioCompletion::init_time(ImageCtx *i, aio_type_t t) {
-  Mutex::Locker locker(lock);
   if (ictx == nullptr) {
     ictx = i;
     aio_type = t;
@@ -116,7 +117,6 @@ void AioCompletion::init_time(ImageCtx *i, aio_type_t t) {
 }
 
 void AioCompletion::start_op(bool ignore_type) {
-  Mutex::Locker locker(lock);
   assert(ictx != nullptr);
   assert(!async_op.started());
   if (state == AIO_STATE_PENDING &&
@@ -127,71 +127,68 @@ void AioCompletion::start_op(bool ignore_type) {
 
 void AioCompletion::fail(int r)
 {
-  lock.Lock();
   assert(ictx != nullptr);
   CephContext *cct = ictx->cct;
-
   lderr(cct) << cpp_strerror(r) << dendl;
+
   assert(pending_count == 0);
-  rval = r;
+
+  error_rval = r;
   complete();
-  put_unlock();
+  put();
 }
 
 void AioCompletion::set_request_count(uint32_t count) {
-  lock.Lock();
   assert(ictx != nullptr);
   CephContext *cct = ictx->cct;
-
   ldout(cct, 20) << "pending=" << count << dendl;
-  assert(pending_count == 0);
-  pending_count = count;
-  lock.Unlock();
 
-  // if no pending requests, completion will fire now
-  unblock();
+  if (count == 0) {
+    finalize();
+    complete();
+    return;
+  }
+
+  uint32_t previous_pending_count = pending_count.exchange(count);
+  assert(previous_pending_count == 0);
 }
 
 void AioCompletion::complete_request(ssize_t r)
 {
-  lock.Lock();
+  uint32_t previous_pending_count = pending_count--;
+  assert(previous_pending_count > 0);
+
   assert(ictx != nullptr);
   CephContext *cct = ictx->cct;
 
-  if (rval >= 0) {
-    if (r < 0 && r != -EEXIST)
-      rval = r;
-    else if (r > 0)
-      rval += r;
+  if (r > 0) {
+    rval += r;
+  } else if (r != -EEXIST) {
+    // might race w/ another thread setting an error code but
+    // first one wins
+    int zero = 0;
+    error_rval.compare_exchange_weak(zero, r);
   }
-  assert(pending_count);
-  int count = --pending_count;
 
   ldout(cct, 20) << "cb=" << complete_cb << ", "
-                 << "pending=" << pending_count << dendl;
-  if (!count && blockers == 0) {
-    finalize(rval);
+                 << "pending=" << (previous_pending_count - 1) << dendl;
+  if (previous_pending_count == 1) {
+    finalize();
     complete();
   }
-  put_unlock();
+  put();
 }
 
 bool AioCompletion::is_complete() {
   tracepoint(librbd, aio_is_complete_enter, this);
-  bool done;
-  {
-    Mutex::Locker l(lock);
-    done = this->state == AIO_STATE_COMPLETE;
-  }
+  bool done = (this->state == AIO_STATE_COMPLETE);
   tracepoint(librbd, aio_is_complete_exit, done);
   return done;
 }
 
 ssize_t AioCompletion::get_return_value() {
   tracepoint(librbd, aio_get_return_value_enter, this);
-  lock.Lock();
-  ssize_t r = rval;
-  lock.Unlock();
+  ssize_t r = (error_rval < 0 ? error_rval : rval);
   tracepoint(librbd, aio_get_return_value_exit, r);
   return r;
 }
