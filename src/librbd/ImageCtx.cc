@@ -111,7 +111,6 @@ public:
       object_map_lock(util::unique_lock_name("librbd::ImageCtx::object_map_lock", this)),
       async_ops_lock(util::unique_lock_name("librbd::ImageCtx::async_ops_lock", this)),
       copyup_list_lock(util::unique_lock_name("librbd::ImageCtx::copyup_list_lock", this)),
-      completed_reqs_lock(util::unique_lock_name("librbd::ImageCtx::completed_reqs_lock", this)),
       extra_read_flags(0),
       old_format(true),
       order(0), size(0), features(0),
@@ -702,13 +701,6 @@ public:
     }
 
     on_finish->complete(0);
-  }
-
-  void ImageCtx::clear_pending_completions() {
-    Mutex::Locker l(completed_reqs_lock);
-    ldout(cct, 10) << "clear pending AioCompletion: count="
-                   << completed_reqs.size() << dendl;
-    completed_reqs.clear();
   }
 
   bool ImageCtx::_filter_metadata_confs(const string &prefix,

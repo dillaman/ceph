@@ -64,7 +64,6 @@ struct AioCompletion {
 
   AsyncOperation async_op;
 
-  xlist<AioCompletion*>::item m_xlist_item;
   bool event_notify;
 
   template <typename T, void (T::*MF)(int)>
@@ -108,8 +107,7 @@ struct AioCompletion {
 
   AioCompletion() : state(AIO_STATE_PENDING), complete_cb(NULL),
                     complete_arg(NULL), rbd_comp(NULL), ictx(NULL),
-                    aio_type(AIO_TYPE_NONE),
-                    m_xlist_item(this), event_notify(false) {
+                    aio_type(AIO_TYPE_NONE), event_notify(false) {
   }
 
   ~AioCompletion() {
@@ -165,12 +163,6 @@ struct AioCompletion {
 
     if (previous_ref == 1) {
       if (ictx != nullptr) {
-        if (event_notify) {
-          ictx->completed_reqs_lock.Lock();
-          m_xlist_item.remove_myself();
-          ictx->completed_reqs_lock.Unlock();
-        }
-
         if (aio_type == AIO_TYPE_CLOSE ||
             (aio_type == AIO_TYPE_OPEN && rval < 0)) {
           delete ictx;

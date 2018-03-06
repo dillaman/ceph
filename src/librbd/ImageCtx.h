@@ -28,6 +28,9 @@
 #include "librbd/AsyncRequest.h"
 #include "librbd/Types.h"
 
+#include <boost/lockfree/queue.hpp>
+#include "include/assert.h"
+
 class CephContext;
 class ContextWQ;
 class Finisher;
@@ -107,7 +110,6 @@ namespace librbd {
     RWLock object_map_lock; // protects object map updates and object_map itself
     Mutex async_ops_lock; // protects async_ops and async_requests
     Mutex copyup_list_lock; // protects copyup_waiting_list
-    Mutex completed_reqs_lock; // protects completed_reqs
 
     unsigned extra_read_flags;
 
@@ -153,7 +155,7 @@ namespace librbd {
     io::ImageRequestWQ<ImageCtx> *io_work_queue;
     io::ObjectDispatcher<ImageCtx> *io_object_dispatcher = nullptr;
 
-    xlist<io::AioCompletion*> completed_reqs;
+    boost::lockfree::queue<io::AioCompletion*> completed_reqs;
     EventSocket event_socket;
 
     ContextWQ *op_work_queue;
@@ -303,8 +305,6 @@ namespace librbd {
     ExclusiveLock<ImageCtx> *create_exclusive_lock();
     ObjectMap<ImageCtx> *create_object_map(uint64_t snap_id);
     Journal<ImageCtx> *create_journal();
-
-    void clear_pending_completions();
 
     void set_image_name(const std::string &name);
 
