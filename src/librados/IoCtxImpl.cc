@@ -106,10 +106,10 @@ struct C_aio_linger_Complete : public Context {
       c->io->client->finisher.queue(new C_aio_linger_cancel(c->io->objecter,
                                                             linger_op));
 
-    c->lock.Lock();
+    c->lock.lock();
     c->rval = r;
     c->complete = true;
-    c->cond.Signal();
+    c->cond.notify_all();
 
     if (c->callback_complete ||
 	c->callback_safe) {
@@ -193,10 +193,10 @@ struct C_aio_selfmanaged_snap_op_Complete : public Context {
   }
 
   void finish(int r) override {
-    c->lock.Lock();
+    c->lock.lock();
     c->rval = r;
     c->complete = true;
-    c->cond.Signal();
+    c->cond.notify_all();
 
     if (c->callback_complete || c->callback_safe) {
       client->finisher.queue(new librados::C_AioComplete(c));
@@ -1960,10 +1960,10 @@ librados::IoCtxImpl::C_aio_stat_Ack::C_aio_stat_Ack(AioCompletionImpl *_c,
 
 void librados::IoCtxImpl::C_aio_stat_Ack::finish(int r)
 {
-  c->lock.Lock();
+  c->lock.lock();
   c->rval = r;
   c->complete = true;
-  c->cond.Signal();
+  c->cond.notify_all();
 
   if (r >= 0 && pmtime) {
     *pmtime = real_clock::to_time_t(mtime);
@@ -1988,10 +1988,10 @@ librados::IoCtxImpl::C_aio_stat2_Ack::C_aio_stat2_Ack(AioCompletionImpl *_c,
 
 void librados::IoCtxImpl::C_aio_stat2_Ack::finish(int r)
 {
-  c->lock.Lock();
+  c->lock.lock();
   c->rval = r;
   c->complete = true;
-  c->cond.Signal();
+  c->cond.notify_all();
 
   if (r >= 0 && pts) {
     *pts = real_clock::to_timespec(mtime);
@@ -2014,10 +2014,10 @@ librados::IoCtxImpl::C_aio_Complete::C_aio_Complete(AioCompletionImpl *_c)
 
 void librados::IoCtxImpl::C_aio_Complete::finish(int r)
 {
-  c->lock.Lock();
+  c->lock.lock();
   c->rval = r;
   c->complete = true;
-  c->cond.Signal();
+  c->cond.notify_all();
 
   if (r == 0 && c->blp && c->blp->length() > 0) {
     if (c->out_buf && !c->blp->is_provided_buffer(c->out_buf))
@@ -2025,9 +2025,10 @@ void librados::IoCtxImpl::C_aio_Complete::finish(int r)
     c->rval = c->blp->length();
   }
 
+  Context* ctx = nullptr;
   if (c->callback_complete ||
       c->callback_safe) {
-    c->io->client->finisher.queue(new C_AioComplete(c));
+    ctx = new C_AioComplete(c);
   }
 
   if (c->aio_write_seq) {
@@ -2038,6 +2039,10 @@ void librados::IoCtxImpl::C_aio_Complete::finish(int r)
   OID_EVENT_TRACE(oid.name.c_str(), "RADOS_OP_COMPLETE");
 #endif
   c->put_unlock();
+
+  if (ctx) {
+    ctx->complete(0);
+  }
 }
 
 void librados::IoCtxImpl::object_list_slice(

@@ -15,20 +15,20 @@
 #ifndef CEPH_LIBRADOS_AIOCOMPLETIONIMPL_H
 #define CEPH_LIBRADOS_AIOCOMPLETIONIMPL_H
 
-#include "common/Cond.h"
-#include "common/Mutex.h"
-
 #include "include/buffer.h"
 #include "include/rados/librados.h"
 #include "include/rados/librados.hpp"
 #include "include/xlist.h"
 #include "osd/osd_types.h"
 
+#include <mutex>
+#include <condition_variable>
+
 class IoCtxImpl;
 
 struct librados::AioCompletionImpl {
-  Mutex lock;
-  Cond cond;
+  std::mutex lock;
+  std::condition_variable cond;
   int ref, rval;
   bool released;
   bool complete;
@@ -48,8 +48,7 @@ struct librados::AioCompletionImpl {
   ceph_tid_t aio_write_seq;
   xlist<AioCompletionImpl*>::item aio_write_list_item;
 
-  AioCompletionImpl() : lock("AioCompletionImpl lock", false, false),
-			ref(1), rval(0), released(false),
+  AioCompletionImpl() : ref(1), rval(0), released(false),
 			complete(false),
 			objver(0),
                         tid(0),
@@ -61,94 +60,91 @@ struct librados::AioCompletionImpl {
 			io(NULL), aio_write_seq(0), aio_write_list_item(this) { }
 
   int set_complete_callback(void *cb_arg, rados_callback_t cb) {
-    lock.Lock();
+    lock.lock();
     callback_complete = cb;
     callback_complete_arg = cb_arg;
-    lock.Unlock();
+    lock.unlock();
     return 0;
   }
   int set_safe_callback(void *cb_arg, rados_callback_t cb) {
-    lock.Lock();
+    lock.lock();
     callback_safe = cb;
     callback_safe_arg = cb_arg;
-    lock.Unlock();
+    lock.unlock();
     return 0;
   }
   int wait_for_complete() {
-    lock.Lock();
+    std::unique_lock<std::mutex> locker(lock);
     while (!complete)
-      cond.Wait(lock);
-    lock.Unlock();
+      cond.wait(locker);
     return 0;
   }
   int wait_for_safe() {
     return wait_for_complete();
   }
   int is_complete() {
-    lock.Lock();
+    lock.lock();
     int r = complete;
-    lock.Unlock();
+    lock.unlock();
     return r;
   }
   int is_safe() {
     return is_complete();
   }
   int wait_for_complete_and_cb() {
-    lock.Lock();
+    std::unique_lock<std::mutex> locker(lock);
     while (!complete || callback_complete || callback_safe)
-      cond.Wait(lock);
-    lock.Unlock();
+      cond.wait(locker);
     return 0;
   }
   int wait_for_safe_and_cb() {
     return wait_for_complete_and_cb();
   }
   int is_complete_and_cb() {
-    lock.Lock();
+    lock.lock();
     int r = complete && !callback_complete && !callback_safe;
-    lock.Unlock();
+    lock.unlock();
     return r;
   }
   int is_safe_and_cb() {
     return is_complete_and_cb();
   }
   int get_return_value() {
-    lock.Lock();
+    lock.lock();
     int r = rval;
-    lock.Unlock();
+    lock.unlock();
     return r;
   }
   uint64_t get_version() {
-    lock.Lock();
+    lock.lock();
     version_t v = objver;
-    lock.Unlock();
+    lock.unlock();
     return v;
   }
 
   void get() {
-    lock.Lock();
+    lock.lock();
     _get();
-    lock.Unlock();
+    lock.unlock();
   }
   void _get() {
-    assert(lock.is_locked());
     assert(ref > 0);
     ++ref;
   }
   void release() {
-    lock.Lock();
+    lock.lock();
     assert(!released);
     released = true;
     put_unlock();
   }
   void put() {
-    lock.Lock();
+    lock.lock();
     put_unlock();
   }
   void put_unlock() {
     assert(ref > 0);
     int n = --ref;
-    lock.Unlock();
+    lock.unlock();
     if (!n)
       delete this;
   }
@@ -173,10 +169,10 @@ struct C_AioComplete : public Context {
     if (cb_safe)
       cb_safe(c, cb_safe_arg);
 
-    c->lock.Lock();
+    c->lock.lock();
     c->callback_complete = NULL;
     c->callback_safe = NULL;
-    c->cond.Signal();
+    c->cond.notify_all();
     c->put_unlock();
   }
 };
@@ -197,10 +193,10 @@ struct C_AioCompleteAndSafe : public Context {
   }
 
   void finish(int r) override {
-    c->lock.Lock();
+    c->lock.lock();
     c->rval = r;
     c->complete = true;
-    c->lock.Unlock();
+    c->lock.unlock();
 
     rados_callback_t cb_complete = c->callback_complete;
     void *cb_complete_arg = c->callback_complete_arg;
@@ -212,10 +208,10 @@ struct C_AioCompleteAndSafe : public Context {
     if (cb_safe)
       cb_safe(c, cb_safe_arg);
 
-    c->lock.Lock();
+    c->lock.lock();
     c->callback_complete = NULL;
     c->callback_safe = NULL;
-    c->cond.Signal();
+    c->cond.notify_all();
     c->put_unlock();
   }
 };

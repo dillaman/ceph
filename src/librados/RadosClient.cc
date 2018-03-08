@@ -421,10 +421,10 @@ struct C_aio_watch_flush_Complete : public Context {
   }
 
   void finish(int r) override {
-    c->lock.Lock();
+    c->lock.lock();
     c->rval = r;
     c->complete = true;
-    c->cond.Signal();
+    c->cond.notify_all();
 
     if (c->callback_complete ||
 	c->callback_safe) {
