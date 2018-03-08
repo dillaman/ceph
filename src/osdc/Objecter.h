@@ -1310,13 +1310,13 @@ public:
 
     epoch_t last_force_resend = 0;
 
-    op_target_t(object_t oid, object_locator_t oloc, int flags)
+    op_target_t(const object_t& oid, const object_locator_t& oloc, int flags)
       : flags(flags),
 	base_oid(oid),
 	base_oloc(oloc)
       {}
 
-    op_target_t(pg_t pgid)
+    op_target_t(const pg_t& pgid)
       : base_oloc(pgid.pool(), pgid.ps()),
 	precalc_pgid(true),
 	base_pgid(pgid)
@@ -1905,7 +1905,7 @@ public:
   ceph::timespan osd_timeout;
 
   MOSDOp *_prepare_osd_op(Op *op);
-  void _send_op(Op *op);
+  void _send_op(Op *op, MOSDOp *m = nullptr);
   void _send_op_account(Op *op);
   void _cancel_linger_op(Op *op);
   void finish_op(OSDSession *session, ceph_tid_t tid);
