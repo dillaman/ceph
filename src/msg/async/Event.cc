@@ -17,6 +17,10 @@
 #include "common/errno.h"
 #include "Event.h"
 
+#ifdef HAVE_EVENTFD
+#include <sys/eventfd.h>
+#endif
+
 #ifdef HAVE_DPDK
 #include "dpdk/EventDPDK.h"
 #endif
@@ -42,10 +46,14 @@ class C_handle_notify : public EventCallback {
  public:
   C_handle_notify(EventCenter *c, CephContext *cc): center(c), cct(cc) {}
   void do_request(uint64_t fd_or_id) override {
-    char c[256];
     int r = 0;
     do {
-      r = read(fd_or_id, c, sizeof(c));
+#ifdef HAVE_EVENTFD
+      char buf[sizeof(uint64_t)];
+#else
+      char buf[256];
+#endif
+      r = read(fd_or_id, buf, sizeof(buf));
       if (r < 0) {
         if (errno != EAGAIN)
           ldout(cct, 1) << __func__ << " read notify pipe failed: " << cpp_strerror(errno) << dendl;
@@ -140,6 +148,15 @@ int EventCenter::init(int n, unsigned i, const std::string &t)
   if (!driver->need_wakeup())
     return 0;
 
+#ifdef HAVE_EVENTFD
+  notify_send_fd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+  if (notify_send_fd < 0) {
+    lderr(cct) << __func__ << " can't create notify eventfd" << dendl;
+    return -errno;
+  }
+  notify_receive_fd = notify_send_fd;
+
+#else // HAVE_EVENTFD
   int fds[2];
   if (pipe(fds) < 0) {
     lderr(cct) << __func__ << " can't create notify pipe" << dendl;
@@ -156,6 +173,7 @@ int EventCenter::init(int n, unsigned i, const std::string &t)
   if (r < 0) {
     return r;
   }
+#endif // HAVE_EVENTFD
 
   return r;
 }
@@ -175,8 +193,10 @@ EventCenter::~EventCenter()
 
   if (notify_receive_fd >= 0)
     ::close(notify_receive_fd);
+#ifndef HAVE_EVENTFD
   if (notify_send_fd >= 0)
     ::close(notify_send_fd);
+#endif
 
   delete driver;
   if (notify_handler)
@@ -322,8 +342,12 @@ void EventCenter::wakeup()
     return ;
 
   ldout(cct, 20) << __func__ << dendl;
+#ifdef HAVE_EVENTFD
+  uint64_t buf = 1;
+#else
   char buf = 'c';
   // wake up "event_wait"
+#endif
   int n = write(notify_send_fd, &buf, sizeof(buf));
   if (n < 0) {
     if (errno != EAGAIN) {
