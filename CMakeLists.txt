@@ -566,10 +566,10 @@ endif()
 
 if(SANITIZE_FLAGS)
   string(REPLACE ";" "," SANITIZE_FLAGS "${SANITIZE_FLAGS}")
-  set(SANITIZE_CFLAGS "-fsanitize=${SANITIZE_FLAGS} -fno-omit-frame-pointer")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SANITIZE_CFLAGS}")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SANITIZE_CFLAGS}")
 endif()
+set(SANITIZE_CFLAGS "-fno-omit-frame-pointer")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SANITIZE_CFLAGS}")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SANITIZE_CFLAGS}")
 
 # Rocksdb
 option(WITH_SYSTEM_ROCKSDB "require and build with system rocksdb" OFF)
