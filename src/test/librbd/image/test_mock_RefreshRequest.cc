@@ -416,7 +416,6 @@ public:
   void expect_image_flush(MockIoImageDispatchSpec &mock_image_request, int r) {
     EXPECT_CALL(mock_image_request, send())
       .WillOnce(Invoke([&mock_image_request, r]() {
-                  mock_image_request.aio_comp->set_request_count(1);
                   mock_image_request.aio_comp->add_request();
                   mock_image_request.aio_comp->complete_request(r);
                 }));

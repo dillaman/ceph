@@ -144,11 +144,10 @@ protected:
     return 0;
   }
 
-  void send_object_requests(const ObjectExtents &object_extents,
-                            const ::SnapContext &snapc, uint64_t journal_tid);
   virtual ObjectDispatchSpec *create_object_request(
-      const ObjectExtent &object_extent, const ::SnapContext &snapc,
-      uint64_t journal_tid, Context *on_finish) = 0;
+      const std::string& oid, uint64_t object_no, uint64_t offset,
+      uint64_t length, const ::SnapContext &snapc, uint64_t journal_tid,
+      const Extents& buffer_extents, Context *on_finish) = 0;
 
   virtual uint64_t append_journal_event(bool synchronous) = 0;
   virtual void update_stats(size_t length) = 0;
@@ -181,14 +180,14 @@ protected:
     return "aio_write";
   }
 
-  void assemble_extent(const ObjectExtent &object_extent, bufferlist *bl);
+  void assemble_extent(const Extents& buffer_extents, bufferlist *bl);
 
   void send_image_cache_request() override;
 
-
   ObjectDispatchSpec *create_object_request(
-      const ObjectExtent &object_extent, const ::SnapContext &snapc,
-      uint64_t journal_tid, Context *on_finish) override;
+      const std::string& oid, uint64_t object_no, uint64_t offset,
+      uint64_t length, const ::SnapContext &snapc, uint64_t journal_tid,
+      const Extents& buffer_extents, Context *on_finish) override;
 
   uint64_t append_journal_event(bool synchronous) override;
   void update_stats(size_t length) override;
@@ -223,8 +222,9 @@ protected:
   void send_image_cache_request() override;
 
   ObjectDispatchSpec *create_object_request(
-      const ObjectExtent &object_extent, const ::SnapContext &snapc,
-      uint64_t journal_tid, Context *on_finish) override;
+      const std::string& oid, uint64_t object_no, uint64_t offset,
+      uint64_t length, const ::SnapContext &snapc, uint64_t journal_tid,
+      const Extents& buffer_extents, Context *on_finish) override;
 
   uint64_t append_journal_event(bool synchronous) override;
   void update_stats(size_t length) override;
@@ -289,8 +289,9 @@ protected:
   void send_image_cache_request() override;
 
   ObjectDispatchSpec *create_object_request(
-      const ObjectExtent &object_extent, const ::SnapContext &snapc,
-      uint64_t journal_tid, Context *on_finish) override;
+      const std::string& oid, uint64_t object_no, uint64_t offset,
+      uint64_t length, const ::SnapContext &snapc, uint64_t journal_tid,
+      const Extents& buffer_extents, Context *on_finish) override;
 
   uint64_t append_journal_event(bool synchronous) override;
   void update_stats(size_t length) override;
@@ -318,11 +319,12 @@ public:
 protected:
   void send_image_cache_request() override;
 
-  void assemble_extent(const ObjectExtent &object_extent, bufferlist *bl);
+  void assemble_extent(const Extents& buffer_extents, bufferlist *bl);
 
   ObjectDispatchSpec *create_object_request(
-      const ObjectExtent &object_extent, const ::SnapContext &snapc,
-      uint64_t journal_tid, Context *on_finish) override;
+      const std::string& oid, uint64_t object_no, uint64_t offset,
+      uint64_t length, const ::SnapContext &snapc, uint64_t journal_tid,
+      const Extents& buffer_extents, Context *on_finish) override;
 
   uint64_t append_journal_event(bool synchronous) override;
   void update_stats(size_t length) override;

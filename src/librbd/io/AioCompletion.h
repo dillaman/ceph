@@ -137,9 +137,10 @@ struct AioCompletion {
     complete_arg = cb_arg;
   }
 
-  void set_request_count(uint32_t num);
   void add_request() {
-    assert(pending_count > 0);
+    // TODO
+    // assert(pending_count > 0);
+    ++pending_count;
     ++ref;
   }
   void complete_request(ssize_t r);

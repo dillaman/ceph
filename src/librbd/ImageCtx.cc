@@ -122,7 +122,7 @@ public:
       state(new ImageState<>(this)),
       operations(new Operations<>(*this)),
       exclusive_lock(nullptr), object_map(nullptr),
-      io_work_queue(nullptr), op_work_queue(nullptr),
+      io_work_queue(nullptr), completed_reqs(128), op_work_queue(nullptr),
       asok_hook(nullptr),
       trace_endpoint("librbd")
   {

@@ -142,7 +142,6 @@ namespace librbd {
     auto aio_comp = io::AioCompletion::create_and_start(onfinish, m_ictx,
                                                         io::AIO_TYPE_READ);
     aio_comp->read_result = io::ReadResult{pbl};
-    aio_comp->set_request_count(1);
 
     auto req_comp = new io::ReadResult::C_ObjectReadRequest(
       aio_comp, off, len, {{0, len}}, false);

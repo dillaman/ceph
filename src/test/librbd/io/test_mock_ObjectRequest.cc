@@ -184,7 +184,6 @@ struct TestMockIoObjectRequest : public TestMockFixture {
                        Extents&& extents, int r) {
     EXPECT_CALL(mock_image_request, aio_read(_, extents))
       .WillOnce(WithArg<0>(Invoke([r](AioCompletion* aio_comp) {
-                             aio_comp->set_request_count(1);
                              aio_comp->add_request();
                              aio_comp->complete_request(r);
                            })));

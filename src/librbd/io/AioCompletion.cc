@@ -136,21 +136,6 @@ void AioCompletion::fail(int r)
   put();
 }
 
-void AioCompletion::set_request_count(uint32_t count) {
-  assert(ictx != nullptr);
-  CephContext *cct = ictx->cct;
-  ldout(cct, 20) << "pending=" << count << dendl;
-
-  if (count == 0) {
-    finalize();
-    complete();
-    return;
-  }
-
-  uint32_t previous_pending_count = pending_count.exchange(count);
-  assert(previous_pending_count == 0);
-}
-
 void AioCompletion::complete_request(ssize_t r)
 {
   uint32_t previous_pending_count = pending_count--;

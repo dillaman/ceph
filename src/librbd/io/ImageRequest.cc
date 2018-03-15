@@ -17,11 +17,24 @@
 #include "include/rados/librados.hpp"
 #include "common/WorkQueue.h"
 #include "osdc/Striper.h"
+#include "osdc/StripeGenerators.h"
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
 #define dout_prefix *_dout << "librbd::io::ImageRequest: " << this \
                            << " " << __func__ << ": "
+
+template<typename T>
+inline std::string hex_stringify(const std::string& prefix, const T& a) {
+#if defined(__GNUC__) && !(defined(__clang__) || defined(__INTEL_COMPILER))
+  static __thread std::ostringstream ss;
+  ss.str("");
+#else
+  std::ostringstream ss;
+#endif
+  ss << prefix << '.' << std::hex << std::setw(16) << std::setfill('0') << a;
+  return ss.str();
+}
 
 namespace librbd {
 namespace io {
@@ -178,45 +191,38 @@ void ImageReadRequest<I>::send_request() {
     // pending async operation
     RWLock::RLocker snap_locker(image_ctx.snap_lock);
     snap_id = image_ctx.snap_id;
+  }
 
-    // map image extents to object extents
-    for (auto &extent : image_extents) {
-      if (extent.second == 0) {
-        continue;
-      }
-
-      Striper::file_to_extents(cct, image_ctx.format_string, &image_ctx.layout,
-                               extent.first, extent.second, 0, object_extents,
-                               buffer_ofs);
-      buffer_ofs += extent.second;
+  // map image extents to object extents
+  aio_comp->add_request();
+  for (auto &extent : image_extents) {
+    if (extent.second == 0) {
+      continue;
     }
+
+    auto lambda =
+      [this, &image_ctx, cct, snap_id, aio_comp]
+      (uint64_t object_no, uint64_t offset, uint64_t length,
+       Extents&& buffer_extents) {
+        auto req_comp = new io::ReadResult::C_ObjectReadRequest(
+          aio_comp, offset, length,
+          std::move(buffer_extents), true);
+
+        std::string object_name(hex_stringify(image_ctx.object_prefix, object_no));
+
+        auto req = ObjectDispatchSpec::create_read(
+          &image_ctx, OBJECT_DISPATCH_LAYER_NONE, object_name,
+          object_no, offset, length, snap_id, m_op_flags,
+          this->m_trace, &req_comp->bl, &req_comp->extent_map, req_comp);
+        req->send();
+      };
+
+    StripeGenerator::file_to_extents(cct, &image_ctx.layout, extent.first,
+                                     extent.second, 0, buffer_ofs, lambda);
+    buffer_ofs += extent.second;
   }
 
-  // pre-calculate the expected number of read requests
-  uint32_t request_count = 0;
-  for (auto &object_extent : object_extents) {
-    request_count += object_extent.second.size();
-  }
-  aio_comp->set_request_count(request_count);
-
-  // issue the requests
-  for (auto &object_extent : object_extents) {
-    for (auto &extent : object_extent.second) {
-      ldout(cct, 20) << "oid " << extent.oid << " " << extent.offset << "~"
-                     << extent.length << " from " << extent.buffer_extents
-                     << dendl;
-
-      auto req_comp = new io::ReadResult::C_ObjectReadRequest(
-        aio_comp, extent.offset, extent.length,
-        std::move(extent.buffer_extents), true);
-      auto req = ObjectDispatchSpec::create_read(
-        &image_ctx, OBJECT_DISPATCH_LAYER_NONE, extent.oid.name,
-        extent.objectno, extent.offset, extent.length, snap_id, m_op_flags,
-        this->m_trace, &req_comp->bl, &req_comp->extent_map, req_comp);
-      req->send();
-    }
-  }
-
+  aio_comp->complete_request(0);
   aio_comp->put();
 
   image_ctx.perfcounter->inc(l_librbd_rd);
@@ -229,7 +235,6 @@ void ImageReadRequest<I>::send_image_cache_request() {
   assert(image_ctx.image_cache != nullptr);
 
   AioCompletion *aio_comp = this->m_aio_comp;
-  aio_comp->set_request_count(1);
 
   auto *req_comp = new io::ReadResult::C_ImageReadRequest(
     aio_comp, this->m_image_extents);
@@ -260,74 +265,66 @@ void AbstractImageWriteRequest<I>::send_request() {
       return;
     }
 
-    for (auto &extent : this->m_image_extents) {
-      if (extent.second == 0) {
-        continue;
-      }
-
-      // map to object extents
-      Striper::file_to_extents(cct, image_ctx.format_string, &image_ctx.layout,
-                               extent.first, extent.second, 0, object_extents);
-      clip_len += extent.second;
-    }
-
     snapc = image_ctx.snapc;
     journaling = (image_ctx.journal != nullptr &&
                   image_ctx.journal->is_journal_appending());
   }
 
+// TODO
+/*
   int ret = validate_object_extents(object_extents);
   if (ret < 0) {
     aio_comp->fail(ret);
     return;
   }
+*/
 
-  if (!object_extents.empty()) {
-    uint64_t journal_tid = 0;
-    if (journaling) {
+  uint64_t journal_tid = 0;
+  aio_comp->add_request();
+  for (auto &extent : this->m_image_extents) {
+    if (extent.second == 0) {
+      continue;
+    }
+
+    if (journaling && journal_tid == 0) {
       // in-flight ops are flushed prior to closing the journal
       assert(image_ctx.journal != NULL);
       journal_tid = append_journal_event(m_synchronous);
     }
 
-    aio_comp->set_request_count(object_extents.size());
-    send_object_requests(object_extents, snapc, journal_tid);
-  } else {
-    // no IO to perform -- fire completion
-    aio_comp->set_request_count(0);
+    auto lambda =
+      [this, &image_ctx, cct, snapc, journal_tid, aio_comp]
+      (uint64_t object_no, uint64_t offset, uint64_t length,
+       Extents&& buffer_extents) {
+        std::string object_name(hex_stringify(image_ctx.object_prefix, object_no));
+
+        C_AioRequest *req_comp = new C_AioRequest(aio_comp);
+        auto request = create_object_request(object_name, object_no, offset,
+                                             length, snapc, journal_tid,
+                                             buffer_extents, req_comp);
+
+        // if journaling, stash the request for later; otherwise send
+        if (request != NULL) {
+          request->send();
+        }
+      };
+
+    StripeGenerator::file_to_extents(cct, &image_ctx.layout, extent.first,
+                                     extent.second, 0, 0, lambda);
+
+    clip_len += extent.second;
   }
+  aio_comp->complete_request(0);
 
   update_stats(clip_len);
   aio_comp->put();
 }
 
 template <typename I>
-void AbstractImageWriteRequest<I>::send_object_requests(
-    const ObjectExtents &object_extents, const ::SnapContext &snapc,
-    uint64_t journal_tid) {
-  I &image_ctx = this->m_image_ctx;
-  CephContext *cct = image_ctx.cct;
-
-  AioCompletion *aio_comp = this->m_aio_comp;
-  for (ObjectExtents::const_iterator p = object_extents.begin();
-       p != object_extents.end(); ++p) {
-    ldout(cct, 20) << "oid " << p->oid << " " << p->offset << "~" << p->length
-                   << " from " << p->buffer_extents << dendl;
-    C_AioRequest *req_comp = new C_AioRequest(aio_comp);
-    auto request = create_object_request(*p, snapc, journal_tid, req_comp);
-
-    // if journaling, stash the request for later; otherwise send
-    if (request != NULL) {
-      request->send();
-    }
-  }
-}
-
-template <typename I>
-void ImageWriteRequest<I>::assemble_extent(const ObjectExtent &object_extent,
+void ImageWriteRequest<I>::assemble_extent(const Extents& buffer_extents,
                                            bufferlist *bl) {
-  for (auto q = object_extent.buffer_extents.begin();
-       q != object_extent.buffer_extents.end(); ++q) {
+  for (auto q = buffer_extents.begin();
+       q != buffer_extents.end(); ++q) {
     bufferlist sub_bl;
     sub_bl.substr_of(m_bl, q->first, q->second);
     bl->claim_append(sub_bl);
@@ -359,7 +356,6 @@ void ImageWriteRequest<I>::send_image_cache_request() {
   assert(image_ctx.image_cache != nullptr);
 
   AioCompletion *aio_comp = this->m_aio_comp;
-  aio_comp->set_request_count(1);
   C_AioRequest *req_comp = new C_AioRequest(aio_comp);
   image_ctx.image_cache->aio_write(std::move(this->m_image_extents),
                                    std::move(m_bl), m_op_flags, req_comp);
@@ -367,15 +363,16 @@ void ImageWriteRequest<I>::send_image_cache_request() {
 
 template <typename I>
 ObjectDispatchSpec *ImageWriteRequest<I>::create_object_request(
-    const ObjectExtent &object_extent, const ::SnapContext &snapc,
-    uint64_t journal_tid, Context *on_finish) {
+    const std::string& oid, uint64_t object_no, uint64_t offset,
+    uint64_t length, const ::SnapContext &snapc, uint64_t journal_tid,
+    const Extents& buffer_extents, Context *on_finish) {
   I &image_ctx = this->m_image_ctx;
 
   bufferlist bl;
-  assemble_extent(object_extent, &bl);
+  assemble_extent(buffer_extents, &bl);
   auto req = ObjectDispatchSpec::create_write(
-    &image_ctx, OBJECT_DISPATCH_LAYER_NONE, object_extent.oid.name,
-    object_extent.objectno, object_extent.offset, std::move(bl), snapc,
+    &image_ctx, OBJECT_DISPATCH_LAYER_NONE, oid,
+    object_no, offset, std::move(bl), snapc,
     m_op_flags, journal_tid, this->m_trace, on_finish);
   return req;
 }
@@ -412,26 +409,28 @@ void ImageDiscardRequest<I>::send_image_cache_request() {
   assert(image_ctx.image_cache != nullptr);
 
   AioCompletion *aio_comp = this->m_aio_comp;
-  aio_comp->set_request_count(this->m_image_extents.size());
+  aio_comp->add_request();
   for (auto &extent : this->m_image_extents) {
     C_AioRequest *req_comp = new C_AioRequest(aio_comp);
     image_ctx.image_cache->aio_discard(extent.first, extent.second,
                                        this->m_skip_partial_discard, req_comp);
   }
+  aio_comp->complete_request(0);
 }
 
 template <typename I>
 ObjectDispatchSpec *ImageDiscardRequest<I>::create_object_request(
-    const ObjectExtent &object_extent, const ::SnapContext &snapc,
-    uint64_t journal_tid, Context *on_finish) {
+    const std::string& oid, uint64_t object_no, uint64_t offset,
+    uint64_t length, const ::SnapContext &snapc, uint64_t journal_tid,
+    const Extents& buffer_extents, Context *on_finish) {
   I &image_ctx = this->m_image_ctx;
   int discard_flags = OBJECT_DISCARD_FLAG_DISABLE_CLONE_REMOVE;
   if (m_skip_partial_discard) {
     discard_flags |=  OBJECT_DISCARD_FLAG_SKIP_PARTIAL;
   }
   auto req = ObjectDispatchSpec::create_discard(
-    &image_ctx, OBJECT_DISPATCH_LAYER_NONE, object_extent.oid.name,
-    object_extent.objectno, object_extent.offset, object_extent.length, snapc,
+    &image_ctx, OBJECT_DISPATCH_LAYER_NONE, oid,
+    object_no, offset, length, snapc,
     discard_flags, journal_tid, this->m_trace, on_finish);
   return req;
 }
@@ -456,7 +455,6 @@ void ImageFlushRequest<I>::send_request() {
   }
 
   AioCompletion *aio_comp = this->m_aio_comp;
-  aio_comp->set_request_count(1);
 
   Context *ctx = new C_AioRequest(aio_comp);
 
@@ -504,7 +502,6 @@ void ImageFlushRequest<I>::send_image_cache_request() {
   assert(image_ctx.image_cache != nullptr);
 
   AioCompletion *aio_comp = this->m_aio_comp;
-  aio_comp->set_request_count(1);
   C_AioRequest *req_comp = new C_AioRequest(aio_comp);
   image_ctx.image_cache->aio_flush(req_comp);
 }
@@ -533,24 +530,28 @@ void ImageWriteSameRequest<I>::send_image_cache_request() {
   assert(image_ctx.image_cache != nullptr);
 
   AioCompletion *aio_comp = this->m_aio_comp;
-  aio_comp->set_request_count(this->m_image_extents.size());
+  aio_comp->add_request();
   for (auto &extent : this->m_image_extents) {
     C_AioRequest *req_comp = new C_AioRequest(aio_comp);
     image_ctx.image_cache->aio_writesame(extent.first, extent.second,
                                          std::move(m_data_bl), m_op_flags,
                                          req_comp);
   }
+  aio_comp->complete_request(0);
 }
 
 template <typename I>
 ObjectDispatchSpec *ImageWriteSameRequest<I>::create_object_request(
-    const ObjectExtent &object_extent, const ::SnapContext &snapc,
-    uint64_t journal_tid, Context *on_finish) {
+    const std::string& oid, uint64_t object_no, uint64_t offset,
+    uint64_t length, const ::SnapContext &snapc, uint64_t journal_tid,
+    const Extents& buffer_extents, Context *on_finish) {
   I &image_ctx = this->m_image_ctx;
 
   bufferlist bl;
   ObjectDispatchSpec *req;
 
+// TODO
+/*
   if (util::assemble_write_same_extent(object_extent, m_data_bl, &bl, false)) {
     Extents buffer_extents{object_extent.buffer_extents};
 
@@ -561,9 +562,10 @@ ObjectDispatchSpec *ImageWriteSameRequest<I>::create_object_request(
       this->m_trace, on_finish);
     return req;
   }
+*/
   req = ObjectDispatchSpec::create_write(
-    &image_ctx, OBJECT_DISPATCH_LAYER_NONE, object_extent.oid.name,
-    object_extent.objectno, object_extent.offset, std::move(bl), snapc,
+    &image_ctx, OBJECT_DISPATCH_LAYER_NONE, oid,
+    object_no, offset, std::move(bl), snapc,
     m_op_flags, journal_tid, this->m_trace, on_finish);
   return req;
 }
@@ -595,9 +597,9 @@ uint64_t ImageCompareAndWriteRequest<I>::append_journal_event(
 
 template <typename I>
 void ImageCompareAndWriteRequest<I>::assemble_extent(
-  const ObjectExtent &object_extent, bufferlist *bl) {
-  for (auto q = object_extent.buffer_extents.begin();
-       q != object_extent.buffer_extents.end(); ++q) {
+  const Extents& buffer_extents, bufferlist *bl) {
+  for (auto q = buffer_extents.begin();
+       q != buffer_extents.end(); ++q) {
     bufferlist sub_bl;
     sub_bl.substr_of(m_bl, q->first, q->second);
     bl->claim_append(sub_bl);
@@ -610,7 +612,6 @@ void ImageCompareAndWriteRequest<I>::send_image_cache_request() {
   assert(image_ctx.image_cache != nullptr);
 
   AioCompletion *aio_comp = this->m_aio_comp;
-  aio_comp->set_request_count(1);
   C_AioRequest *req_comp = new C_AioRequest(aio_comp);
   image_ctx.image_cache->aio_compare_and_write(
     std::move(this->m_image_extents), std::move(m_cmp_bl), std::move(m_bl),
@@ -619,18 +620,18 @@ void ImageCompareAndWriteRequest<I>::send_image_cache_request() {
 
 template <typename I>
 ObjectDispatchSpec *ImageCompareAndWriteRequest<I>::create_object_request(
-    const ObjectExtent &object_extent,
-    const ::SnapContext &snapc,
-    uint64_t journal_tid, Context *on_finish) {
+    const std::string& oid, uint64_t object_no, uint64_t offset,
+    uint64_t length, const ::SnapContext &snapc, uint64_t journal_tid,
+    const Extents& buffer_extents, Context *on_finish) {
   I &image_ctx = this->m_image_ctx;
 
   // NOTE: safe to move m_cmp_bl since we only support this op against
   // a single object
   bufferlist bl;
-  assemble_extent(object_extent, &bl);
+  assemble_extent(buffer_extents, &bl);
   auto req = ObjectDispatchSpec::create_compare_and_write(
-    &image_ctx, OBJECT_DISPATCH_LAYER_NONE, object_extent.oid.name,
-    object_extent.objectno, object_extent.offset, std::move(m_cmp_bl),
+    &image_ctx, OBJECT_DISPATCH_LAYER_NONE, oid,
+    object_no, offset, std::move(m_cmp_bl),
     std::move(bl), snapc, m_mismatch_offset, m_op_flags, journal_tid,
     this->m_trace, on_finish);
   return req;

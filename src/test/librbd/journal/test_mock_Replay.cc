@@ -124,7 +124,7 @@ ACTION_P2(CompleteAioCompletion, r, image_ctx) {
   image_ctx->op_work_queue->queue(new FunctionContext([this, arg0](int r) {
       arg0->get();
       arg0->init_time(image_ctx, librbd::io::AIO_TYPE_NONE);
-      arg0->set_request_count(1);
+      arg0->add_request();
       arg0->complete_request(r);
     }), r);
 }
@@ -317,7 +317,7 @@ public:
                      io::AioCompletion *aio_comp, int r) {
     aio_comp->get();
     aio_comp->init_time(mock_image_ctx.image_ctx, librbd::io::AIO_TYPE_NONE);
-    aio_comp->set_request_count(1);
+    aio_comp->add_request();
     aio_comp->complete_request(r);
   }
 
