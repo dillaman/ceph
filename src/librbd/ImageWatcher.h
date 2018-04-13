@@ -21,15 +21,17 @@ namespace librbd {
 
 namespace watcher {
 namespace util {
+template <typename> struct C_NotifyAck;
 template <typename> struct HandlePayloadVisitor;
-}
-}
+} // namespace util
+} // namespace watcher
 
 class ImageCtx;
 template <typename> class TaskFinisher;
 
 template <typename ImageCtxT = ImageCtx>
 class ImageWatcher : public Watcher {
+  typedef watcher::util::C_NotifyAck<ImageWatcher> C_NotifyAck;
   friend struct watcher::util::HandlePayloadVisitor<ImageWatcher<ImageCtxT>>;
 
 public:

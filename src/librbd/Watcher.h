@@ -21,17 +21,6 @@ namespace watcher { struct NotifyResponse; }
 
 class Watcher {
 public:
-  struct C_NotifyAck : public Context {
-    Watcher *watcher;
-    CephContext *cct;
-    uint64_t notify_id;
-    uint64_t handle;
-    bufferlist out;
-
-    C_NotifyAck(Watcher *watcher, uint64_t notify_id, uint64_t handle);
-    void finish(int r) override;
-  };
-
   Watcher(librados::IoCtx& ioctx, ContextWQ *work_queue,
           const std::string& oid);
   virtual ~Watcher();
@@ -61,6 +50,9 @@ public:
     return m_watch_state == WATCH_STATE_UNREGISTERED;
   }
 
+  void acknowledge_notify(uint64_t notify_id, uint64_t handle,
+                          bufferlist &out);
+
 protected:
   enum WatchState {
     WATCH_STATE_UNREGISTERED,
@@ -88,9 +80,6 @@ protected:
                              uint64_t notifier_id, bufferlist &bl) = 0;
 
   virtual void handle_error(uint64_t cookie, int err);
-
-  void acknowledge_notify(uint64_t notify_id, uint64_t handle,
-                          bufferlist &out);
 
   virtual void handle_rewatch_complete(int r) { }
 

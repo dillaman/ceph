@@ -67,23 +67,6 @@ struct C_UnwatchAndFlush : public Context {
 } // anonymous namespace
 
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::Watcher::C_NotifyAck " << this << " " \
-                           << __func__ << ": "
-
-Watcher::C_NotifyAck::C_NotifyAck(Watcher *watcher, uint64_t notify_id,
-                                  uint64_t handle)
-  : watcher(watcher), cct(watcher->m_cct), notify_id(notify_id),
-    handle(handle) {
-  ldout(cct, 10) << "id=" << notify_id << ", " << "handle=" << handle << dendl;
-}
-
-void Watcher::C_NotifyAck::finish(int r) {
-  ldout(cct, 10) << "r=" << r << dendl;
-  assert(r == 0);
-  watcher->acknowledge_notify(notify_id, handle, out);
-}
-
-#undef dout_prefix
 #define dout_prefix *_dout << "librbd::Watcher: " << this << " " << __func__ \
                            << ": "
 

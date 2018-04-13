@@ -7,7 +7,6 @@
 #include "include/buffer_fwd.h"
 #include "include/encoding.h"
 #include "include/Context.h"
-#include "librbd/Watcher.h"
 
 namespace ceph { class Formatter; }
 
@@ -15,13 +14,40 @@ namespace librbd {
 namespace watcher {
 namespace util {
 
-template <typename Watcher>
+struct C_NotifyAckBase : public Context {
+  CephContext *cct;
+  uint64_t notify_id;
+  uint64_t handle;
+  bufferlist out;
+
+  C_NotifyAckBase(CephContext *cct, uint64_t notify_id, uint64_t handle);
+
+  void finish(int r) override;
+};
+
+template <typename WatcherT>
+struct C_NotifyAck : public C_NotifyAckBase {
+  WatcherT *watcher;
+
+  C_NotifyAck(WatcherT *watcher, CephContext* cct, uint64_t notify_id,
+              uint64_t handle)
+    : C_NotifyAckBase(cct, notify_id, handle), watcher(watcher) {
+  }
+
+  void finish(int r) override {
+    C_NotifyAckBase::finish(r);
+    assert(r == 0);
+    watcher->acknowledge_notify(notify_id, handle, out);
+  }
+};
+
+template <typename WatcherT>
 struct HandlePayloadVisitor : public boost::static_visitor<void> {
-  Watcher *watcher;
+  WatcherT *watcher;
   uint64_t notify_id;
   uint64_t handle;
 
-  HandlePayloadVisitor(Watcher *watcher_, uint64_t notify_id_,
+  HandlePayloadVisitor(WatcherT *watcher_, uint64_t notify_id_,
       uint64_t handle_)
     : watcher(watcher_), notify_id(notify_id_), handle(handle_)
   {
@@ -29,8 +55,8 @@ struct HandlePayloadVisitor : public boost::static_visitor<void> {
 
   template <typename P>
   inline void operator()(const P &payload) const {
-    typename Watcher::C_NotifyAck *ctx =
-      new typename Watcher::C_NotifyAck(watcher, notify_id, handle);
+    auto ctx = new C_NotifyAck<WatcherT>(watcher, watcher->m_cct, notify_id,
+                                         handle);
     if (watcher->handle_payload(payload, ctx)) {
       ctx->complete(0);
     }

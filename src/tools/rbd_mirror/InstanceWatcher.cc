@@ -8,6 +8,7 @@
 #include "cls/rbd/cls_rbd_client.h"
 #include "librbd/ManagedLock.h"
 #include "librbd/Utils.h"
+#include "librbd/watcher/Utils.h"
 #include "InstanceReplayer.h"
 #include "ImageSyncThrottler.h"
 
@@ -1102,7 +1103,7 @@ void InstanceWatcher<I>::handle_notify(uint64_t notify_id, uint64_t handle,
   dout(20) << "notify_id=" << notify_id << ", handle=" << handle << ", "
            << "notifier_id=" << notifier_id << dendl;
 
-  auto ctx = new C_NotifyAck(this, notify_id, handle);
+  auto ctx = new C_NotifyAck(this, m_cct, notify_id, handle);
 
   NotifyMessage notify_message;
   try {

@@ -20,7 +20,13 @@ namespace librbd {
 class ImageCtx;
 template <typename> class ManagedLock;
 
-}
+namespace watcher {
+namespace util {
+template <typename> struct C_NotifyAck;
+template <typename> struct HandlePayloadVisitor;
+} // namespace util
+} // namespace watcher
+} // namespace librbd
 
 namespace rbd {
 namespace mirror {
@@ -31,6 +37,8 @@ template <typename> struct Threads;
 
 template <typename ImageCtxT = librbd::ImageCtx>
 class InstanceWatcher : protected librbd::Watcher {
+  typedef librbd::watcher::util::C_NotifyAck<InstanceWatcher> C_NotifyAck;
+
   using librbd::Watcher::unregister_watch; // Silence overloaded virtual warning
 public:
   static void get_instances(librados::IoCtx &io_ctx,
@@ -47,6 +55,8 @@ public:
   void destroy() {
     delete this;
   }
+
+  using librbd::Watcher::acknowledge_notify;
 
   InstanceWatcher(librados::IoCtx &io_ctx, ContextWQ *work_queue,
                   InstanceReplayer<ImageCtxT> *instance_replayer,

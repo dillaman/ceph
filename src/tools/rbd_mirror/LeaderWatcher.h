@@ -35,6 +35,8 @@ public:
     return new LeaderWatcher(threads, io_ctx, listener);
   }
 
+  using librbd::Watcher::acknowledge_notify;
+
   LeaderWatcher(Threads<ImageCtxT> *threads, librados::IoCtx &io_ctx,
                 leader_watcher::Listener *listener);
   ~LeaderWatcher() override;

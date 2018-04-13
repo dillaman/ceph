@@ -9,6 +9,7 @@
 #include "include/stringify.h"
 #include "librbd/Utils.h"
 #include "librbd/watcher/Types.h"
+#include "librbd/watcher/Utils.h"
 #include "Threads.h"
 
 #define dout_context g_ceph_context
@@ -1067,7 +1068,8 @@ void LeaderWatcher<I>::handle_notify(uint64_t notify_id, uint64_t handle,
   dout(20) << "notify_id=" << notify_id << ", handle=" << handle << ", "
            << "notifier_id=" << notifier_id << dendl;
 
-  Context *ctx = new C_NotifyAck(this, notify_id, handle);
+  Context *ctx = new librbd::watcher::util::C_NotifyAck<LeaderWatcher>(
+    this, m_cct, notify_id, handle);
 
   if (notifier_id == m_notifier_id) {
     dout(20) << "our own notification, ignoring" << dendl;

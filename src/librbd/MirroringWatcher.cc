@@ -102,7 +102,8 @@ void MirroringWatcher<I>::handle_notify(uint64_t notify_id, uint64_t handle,
   } catch (const buffer::error &err) {
     lderr(cct) << ": error decoding image notification: " << err.what()
                << dendl;
-    Context *ctx = new C_NotifyAck(this, notify_id, handle);
+    Context *ctx = new watcher::util::C_NotifyAck<MirroringWatcher>(
+      this, cct, notify_id, handle);
     ctx->complete(0);
     return;
   }
