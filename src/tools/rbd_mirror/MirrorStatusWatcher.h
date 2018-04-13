@@ -12,7 +12,7 @@ namespace rbd {
 namespace mirror {
 
 template <typename ImageCtxT = librbd::ImageCtx>
-class MirrorStatusWatcher : protected librbd::Watcher {
+class MirrorStatusWatcher : protected librbd::Watcher<ImageCtxT> {
 public:
   static MirrorStatusWatcher *create(librados::IoCtx &io_ctx,
                                      ContextWQ *work_queue) {

@@ -30,7 +30,8 @@ struct ManagedLock<MockTestImageCtx> {
   static ManagedLock* s_instance;
 
   static ManagedLock *create(librados::IoCtx& ioctx, ContextWQ *work_queue,
-                             const std::string& oid, librbd::Watcher *watcher,
+                             const std::string& oid,
+                             librbd::Watcher<MockTestImageCtx> *watcher,
                              managed_lock::Mode  mode,
                              bool blacklist_on_break_lock,
                              uint32_t blacklist_expire_seconds) {

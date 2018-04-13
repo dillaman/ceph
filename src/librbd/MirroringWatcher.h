@@ -19,11 +19,11 @@ namespace librbd {
 namespace watcher {
 namespace util {
 template <typename> struct HandlePayloadVisitor;
-}
-}
+} // namespace util
+} // namespace watcher
 
 template <typename ImageCtxT = librbd::ImageCtx>
-class MirroringWatcher : public Watcher {
+class MirroringWatcher : public Watcher<ImageCtxT> {
   friend struct watcher::util::HandlePayloadVisitor<MirroringWatcher<ImageCtxT>>;
 
 public:

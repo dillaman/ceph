@@ -21,7 +21,7 @@ using librbd::util::create_rados_callback;
 template <typename I>
 MirrorStatusWatcher<I>::MirrorStatusWatcher(librados::IoCtx &io_ctx,
                                             ContextWQ *work_queue)
-  : Watcher(io_ctx, work_queue, RBD_MIRRORING) {
+  : librbd::Watcher<I>(io_ctx, work_queue, RBD_MIRRORING) {
 }
 
 template <typename I>
@@ -39,14 +39,14 @@ void MirrorStatusWatcher<I>::init(Context *on_finish) {
         on_finish->complete(r);
         return;
       }
-      register_watch(on_finish);
+      this->register_watch(on_finish);
     });
 
   librados::ObjectWriteOperation op;
   librbd::cls_client::mirror_image_status_remove_down(&op);
   librados::AioCompletion *aio_comp = create_rados_callback(on_finish);
 
-  int r = m_ioctx.aio_operate(RBD_MIRRORING, aio_comp, &op);
+  int r = this->m_ioctx.aio_operate(RBD_MIRRORING, aio_comp, &op);
   assert(r == 0);
   aio_comp->release();
 }
@@ -55,7 +55,7 @@ template <typename I>
 void MirrorStatusWatcher<I>::shut_down(Context *on_finish) {
   dout(20) << dendl;
 
-  unregister_watch(on_finish);
+  this->unregister_watch(on_finish);
 }
 
 template <typename I>
@@ -65,7 +65,7 @@ void MirrorStatusWatcher<I>::handle_notify(uint64_t notify_id, uint64_t handle,
   dout(20) << dendl;
 
   bufferlist out;
-  acknowledge_notify(notify_id, handle, out);
+  this->acknowledge_notify(notify_id, handle, out);
 }
 
 } // namespace mirror

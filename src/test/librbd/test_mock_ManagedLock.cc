@@ -19,13 +19,6 @@ struct MockManagedLockImageCtx : public MockImageCtx {
   MockManagedLockImageCtx(ImageCtx &image_ctx) : MockImageCtx(image_ctx) {}
 };
 
-namespace watcher {
-template <>
-struct Traits<MockManagedLockImageCtx> {
-  typedef librbd::MockImageWatcher Watcher;
-};
-}
-
 struct MockMockManagedLock : public ManagedLock<MockManagedLockImageCtx> {
   MockMockManagedLock(librados::IoCtx& ioctx, ContextWQ *work_queue,
                  const std::string& oid, librbd::MockImageWatcher *watcher,
@@ -134,8 +127,6 @@ struct BreakRequest<MockManagedLockImageCtx> {
 
 // template definitions
 #include "librbd/ManagedLock.cc"
-template class librbd::ManagedLock<librbd::MockManagedLockImageCtx>;
-
 
 ACTION_P3(QueueRequest, request, r, wq) {
   if (request->on_finish != nullptr) {

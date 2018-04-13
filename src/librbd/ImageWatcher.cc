@@ -65,7 +65,7 @@ struct ImageWatcher<I>::C_ProcessPayload : public Context {
 
 template <typename I>
 ImageWatcher<I>::ImageWatcher(I &image_ctx)
-  : Watcher(image_ctx.md_ctx, image_ctx.op_work_queue, image_ctx.header_oid),
+  : Watcher<I>(image_ctx.md_ctx, image_ctx.op_work_queue, image_ctx.header_oid),
     m_image_ctx(image_ctx),
     m_task_finisher(new TaskFinisher<Task>(*m_image_ctx.cct)),
     m_async_request_lock(util::unique_lock_name("librbd::ImageWatcher::m_async_request_lock", this)),
@@ -89,7 +89,7 @@ void ImageWatcher<I>::unregister_watch(Context *on_finish) {
   FunctionContext *ctx = new FunctionContext([this, on_finish](int r) {
     m_task_finisher->cancel_all(on_finish);
   });
-  Watcher::unregister_watch(ctx);
+  Watcher<I>::unregister_watch(ctx);
 }
 
 template <typename I>
@@ -101,7 +101,7 @@ void ImageWatcher<I>::block_notifies(Context *on_finish) {
       cancel_async_requests();
       on_finish->complete(r);
     });
-  Watcher::block_notifies(on_finish);
+  Watcher<I>::block_notifies(on_finish);
 }
 
 template <typename I>
@@ -367,7 +367,7 @@ void ImageWatcher<I>::schedule_request_lock(bool use_timer, int timer_delay) {
          !m_image_ctx.exclusive_lock->is_lock_owner());
 
   RWLock::RLocker watch_locker(this->m_watch_lock);
-  if (this->m_watch_state == Watcher::WATCH_STATE_REGISTERED) {
+  if (this->m_watch_state == Watcher<I>::WATCH_STATE_REGISTERED) {
     ldout(m_image_ctx.cct, 15) << this << " requesting exclusive lock" << dendl;
 
     FunctionContext *ctx = new FunctionContext(
@@ -970,7 +970,7 @@ void ImageWatcher<I>::handle_error(uint64_t handle, int err) {
     set_owner_client_id(ClientId());
   }
 
-  Watcher::handle_error(handle, err);
+  Watcher<I>::handle_error(handle, err);
 }
 
 template <typename I>
@@ -995,7 +995,7 @@ void ImageWatcher<I>::send_notify(const Payload &payload, Context *ctx) {
   bufferlist bl;
 
   encode(NotifyMessage(payload), bl);
-  Watcher::send_notify(bl, nullptr, ctx);
+  Watcher<I>::send_notify(bl, nullptr, ctx);
 }
 
 template <typename I>

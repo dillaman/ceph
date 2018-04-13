@@ -25,7 +25,7 @@ using util::create_rados_callback;
 
 template <typename I>
 ReleaseRequest<I>* ReleaseRequest<I>::create(librados::IoCtx& ioctx,
-                                             Watcher *watcher,
+                                             Watcher<I> *watcher,
                                              ContextWQ *work_queue,
                                              const string& oid,
                                              const string& cookie,
@@ -35,7 +35,7 @@ ReleaseRequest<I>* ReleaseRequest<I>::create(librados::IoCtx& ioctx,
 }
 
 template <typename I>
-ReleaseRequest<I>::ReleaseRequest(librados::IoCtx& ioctx, Watcher *watcher,
+ReleaseRequest<I>::ReleaseRequest(librados::IoCtx& ioctx, Watcher<I> *watcher,
                                   ContextWQ *work_queue, const string& oid,
                                   const string& cookie, Context *on_finish)
   : m_ioctx(ioctx), m_watcher(watcher), m_oid(oid), m_cookie(cookie),

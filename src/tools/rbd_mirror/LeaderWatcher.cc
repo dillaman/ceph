@@ -29,12 +29,13 @@ using librbd::util::create_rados_callback;
 template <typename I>
 LeaderWatcher<I>::LeaderWatcher(Threads<I> *threads, librados::IoCtx &io_ctx,
                                 leader_watcher::Listener *listener)
-  : Watcher(io_ctx, threads->work_queue, RBD_MIRROR_LEADER),
+  : librbd::Watcher<I>(io_ctx, threads->work_queue, RBD_MIRROR_LEADER),
     m_threads(threads), m_listener(listener), m_instances_listener(this),
     m_lock("rbd::mirror::LeaderWatcher " + io_ctx.get_pool_name()),
     m_notifier_id(librados::Rados(io_ctx).get_instance_id()),
-    m_leader_lock(new LeaderLock(m_ioctx, m_work_queue, m_oid, this, true,
-                                 m_cct->_conf->get_val<int64_t>(
+    m_leader_lock(new LeaderLock(this->m_ioctx, this->m_work_queue, this->m_oid,
+                                 this, true,
+                                 this->m_cct->_conf->template get_val<int64_t>(
                                    "rbd_blacklist_expire_seconds"))) {
 }
 
@@ -82,7 +83,7 @@ void LeaderWatcher<I>::create_leader_object() {
 
   librados::AioCompletion *aio_comp = create_rados_callback<
     LeaderWatcher<I>, &LeaderWatcher<I>::handle_create_leader_object>(this);
-  int r = m_ioctx.aio_operate(m_oid, aio_comp, &op);
+  int r = this->m_ioctx.aio_operate(this->m_oid, aio_comp, &op);
   assert(r == 0);
   aio_comp->release();
 }
@@ -100,7 +101,7 @@ void LeaderWatcher<I>::handle_create_leader_object(int r) {
       return;
     }
 
-    derr << "error creating " << m_oid << " object: " << cpp_strerror(r)
+    derr << "error creating " << this->m_oid << " object: " << cpp_strerror(r)
          << dendl;
 
     std::swap(on_finish, m_on_finish);
@@ -115,10 +116,10 @@ void LeaderWatcher<I>::register_watch() {
   assert(m_lock.is_locked());
 
   Context *ctx = create_async_context_callback(
-    m_work_queue, create_context_callback<
+    this->m_work_queue, create_context_callback<
       LeaderWatcher<I>, &LeaderWatcher<I>::handle_register_watch>(this));
 
-  librbd::Watcher::register_watch(ctx);
+  librbd::Watcher<I>::register_watch(ctx);
 }
 
 template <typename I>
@@ -128,8 +129,8 @@ void LeaderWatcher<I>::handle_register_watch(int r) {
   Context *on_finish = nullptr;
   if (r < 0) {
     Mutex::Locker locker(m_lock);
-    derr << "error registering leader watcher for " << m_oid << " object: "
-         << cpp_strerror(r) << dendl;
+    derr << "error registering leader watcher for " << this->m_oid
+         << " object: " << cpp_strerror(r) << dendl;
     assert(m_on_finish != nullptr);
     std::swap(on_finish, m_on_finish);
   } else {
@@ -169,7 +170,7 @@ void LeaderWatcher<I>::shut_down_leader_lock() {
   assert(m_lock.is_locked());
 
   Context *ctx = create_async_context_callback(
-    m_work_queue, create_context_callback<
+    this->m_work_queue, create_context_callback<
       LeaderWatcher<I>, &LeaderWatcher<I>::handle_shut_down_leader_lock>(this));
 
   m_leader_lock->shut_down(ctx);
@@ -195,10 +196,10 @@ void LeaderWatcher<I>::unregister_watch() {
   assert(m_lock.is_locked());
 
   Context *ctx = create_async_context_callback(
-    m_work_queue, create_context_callback<
+    this->m_work_queue, create_context_callback<
       LeaderWatcher<I>, &LeaderWatcher<I>::handle_unregister_watch>(this));
 
-  librbd::Watcher::unregister_watch(ctx);
+  librbd::Watcher<I>::unregister_watch(ctx);
 }
 
 template <typename I>
@@ -206,8 +207,8 @@ void LeaderWatcher<I>::handle_unregister_watch(int r) {
   dout(20) << "r=" << r << dendl;
 
   if (r < 0) {
-    derr << "error unregistering leader watcher for " << m_oid << " object: "
-         << cpp_strerror(r) << dendl;
+    derr << "error unregistering leader watcher for " << this->m_oid
+         << " object: " << cpp_strerror(r) << dendl;
   }
   wait_for_tasks();
 }
@@ -243,7 +244,7 @@ void LeaderWatcher<I>::handle_wait_for_tasks() {
       }
       on_finish->complete(0);
     });
-  m_work_queue->queue(ctx, 0);
+  this->m_work_queue->queue(ctx, 0);
 }
 
 template <typename I>
@@ -371,7 +372,7 @@ void LeaderWatcher<I>::schedule_timer_task(const std::string &name,
       m_timer_gate->timer_callback = timer_callback;
     });
 
-  int after = delay_factor * m_cct->_conf->get_val<int64_t>(
+  int after = delay_factor * this->m_cct->_conf->template get_val<int64_t>(
     "rbd_mirror_leader_heartbeat_interval");
 
   dout(20) << "scheduling " << name << " after " << after << " sec (task "
@@ -462,7 +463,7 @@ void LeaderWatcher<I>::break_leader_lock() {
   }
 
   Context *ctx = create_async_context_callback(
-    m_work_queue, create_context_callback<
+    this->m_work_queue, create_context_callback<
       LeaderWatcher<I>, &LeaderWatcher<I>::handle_break_leader_lock>(this));
 
   m_leader_lock->break_lock(m_locker, true, ctx);
@@ -520,7 +521,8 @@ void LeaderWatcher<I>::get_locker() {
   assert(!m_timer_op_tracker.empty());
 
   C_GetLocker *get_locker_ctx = new C_GetLocker(this);
-  Context *ctx = create_async_context_callback(m_work_queue, get_locker_ctx);
+  Context *ctx = create_async_context_callback(this->m_work_queue,
+                                               get_locker_ctx);
 
   m_leader_lock->get_locker(&get_locker_ctx->locker, ctx);
 }
@@ -569,7 +571,7 @@ void LeaderWatcher<I>::handle_get_locker(int r,
     }
   }
 
-  if (m_acquire_attempts >= m_cct->_conf->get_val<int64_t>(
+  if (m_acquire_attempts >= this->m_cct->_conf->template get_val<int64_t>(
         "rbd_mirror_leader_max_acquire_attempts_before_break")) {
     dout(0) << "breaking leader lock after " << m_acquire_attempts << " "
             << "failed attempts to acquire" << dendl;
@@ -594,7 +596,7 @@ void LeaderWatcher<I>::handle_get_locker(int r,
       Mutex::Locker locker(m_lock);
       m_timer_op_tracker.finish_op();
     });
-  m_work_queue->queue(ctx, 0);
+  this->m_work_queue->queue(ctx, 0);
 }
 
 template <typename I>
@@ -606,7 +608,8 @@ void LeaderWatcher<I>::schedule_acquire_leader_lock(uint32_t delay_factor) {
 
   schedule_timer_task("acquire leader lock",
                       delay_factor *
-                        m_cct->_conf->get_val<int64_t>("rbd_mirror_leader_max_missed_heartbeats"),
+                        this->m_cct->_conf->template get_val<int64_t>(
+                          "rbd_mirror_leader_max_missed_heartbeats"),
                       false, &LeaderWatcher<I>::acquire_leader_lock, false);
 }
 
@@ -620,7 +623,7 @@ void LeaderWatcher<I>::acquire_leader_lock() {
   dout(20) << "acquire_attempts=" << m_acquire_attempts << dendl;
 
   Context *ctx = create_async_context_callback(
-    m_work_queue, create_context_callback<
+    this->m_work_queue, create_context_callback<
       LeaderWatcher<I>, &LeaderWatcher<I>::handle_acquire_leader_lock>(this));
   m_leader_lock->try_acquire_lock(ctx);
 }
@@ -670,7 +673,7 @@ void LeaderWatcher<I>::release_leader_lock() {
   assert(m_lock.is_locked());
 
   Context *ctx = create_async_context_callback(
-    m_work_queue, create_context_callback<
+    this->m_work_queue, create_context_callback<
       LeaderWatcher<I>, &LeaderWatcher<I>::handle_release_leader_lock>(this));
 
   m_leader_lock->release_lock(ctx);
@@ -698,7 +701,8 @@ void LeaderWatcher<I>::init_status_watcher() {
   assert(m_lock.is_locked());
   assert(m_status_watcher == nullptr);
 
-  m_status_watcher = MirrorStatusWatcher<I>::create(m_ioctx, m_work_queue);
+  m_status_watcher = MirrorStatusWatcher<I>::create(this->m_ioctx,
+                                                    this->m_work_queue);
 
   Context *ctx = create_context_callback<
     LeaderWatcher<I>, &LeaderWatcher<I>::handle_init_status_watcher>(this);
@@ -737,7 +741,7 @@ void LeaderWatcher<I>::shut_down_status_watcher() {
   assert(m_status_watcher != nullptr);
 
   Context *ctx = create_async_context_callback(
-    m_work_queue, create_context_callback<LeaderWatcher<I>,
+    this->m_work_queue, create_context_callback<LeaderWatcher<I>,
       &LeaderWatcher<I>::handle_shut_down_status_watcher>(this));
 
   m_status_watcher->shut_down(ctx);
@@ -766,7 +770,8 @@ void LeaderWatcher<I>::init_instances() {
   assert(m_lock.is_locked());
   assert(m_instances == nullptr);
 
-  m_instances = Instances<I>::create(m_threads, m_ioctx, m_instances_listener);
+  m_instances = Instances<I>::create(m_threads, this->m_ioctx,
+                                     m_instances_listener);
 
   Context *ctx = create_context_callback<
     LeaderWatcher<I>, &LeaderWatcher<I>::handle_init_instances>(this);
@@ -804,7 +809,7 @@ void LeaderWatcher<I>::shut_down_instances() {
   assert(m_instances != nullptr);
 
   Context *ctx = create_async_context_callback(
-    m_work_queue, create_context_callback<LeaderWatcher<I>,
+    this->m_work_queue, create_context_callback<LeaderWatcher<I>,
       &LeaderWatcher<I>::handle_shut_down_instances>(this));
 
   m_instances->shut_down(ctx);
@@ -835,7 +840,7 @@ void LeaderWatcher<I>::notify_listener() {
   assert(m_lock.is_locked());
 
   Context *ctx = create_async_context_callback(
-    m_work_queue, create_context_callback<
+    this->m_work_queue, create_context_callback<
       LeaderWatcher<I>, &LeaderWatcher<I>::handle_notify_listener>(this));
 
   if (is_leader(m_lock)) {
@@ -849,7 +854,7 @@ void LeaderWatcher<I>::notify_listener() {
         m_listener->pre_release_handler(ctx);
       });
   }
-  m_work_queue->queue(ctx, 0);
+  this->m_work_queue->queue(ctx, 0);
 }
 
 template <typename I>
@@ -882,7 +887,7 @@ void LeaderWatcher<I>::notify_lock_acquired() {
   bufferlist bl;
   encode(NotifyMessage{LockAcquiredPayload{}}, bl);
 
-  send_notify(bl, nullptr, ctx);
+  this->send_notify(bl, nullptr, ctx);
 }
 
 template <typename I>
@@ -919,7 +924,7 @@ void LeaderWatcher<I>::notify_lock_released() {
   bufferlist bl;
   encode(NotifyMessage{LockReleasedPayload{}}, bl);
 
-  send_notify(bl, nullptr, ctx);
+  this->send_notify(bl, nullptr, ctx);
 }
 
 template <typename I>
@@ -961,7 +966,7 @@ void LeaderWatcher<I>::notify_heartbeat() {
   encode(NotifyMessage{HeartbeatPayload{}}, bl);
 
   m_heartbeat_response.acks.clear();
-  send_notify(bl, &m_heartbeat_response, ctx);
+  this->send_notify(bl, &m_heartbeat_response, ctx);
 }
 
 template <typename I>
@@ -1069,7 +1074,7 @@ void LeaderWatcher<I>::handle_notify(uint64_t notify_id, uint64_t handle,
            << "notifier_id=" << notifier_id << dendl;
 
   Context *ctx = new librbd::watcher::util::C_NotifyAck<LeaderWatcher>(
-    this, m_cct, notify_id, handle);
+    this, this->m_cct, notify_id, handle);
 
   if (notifier_id == m_notifier_id) {
     dout(20) << "our own notification, ignoring" << dendl;

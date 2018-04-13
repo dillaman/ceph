@@ -32,7 +32,7 @@ namespace managed_lock {
 
 template <typename I>
 AcquireRequest<I>* AcquireRequest<I>::create(librados::IoCtx& ioctx,
-                                             Watcher *watcher,
+                                             Watcher<I> *watcher,
                                              ContextWQ *work_queue,
                                              const string& oid,
                                              const string& cookie,
@@ -46,7 +46,7 @@ AcquireRequest<I>* AcquireRequest<I>::create(librados::IoCtx& ioctx,
 }
 
 template <typename I>
-AcquireRequest<I>::AcquireRequest(librados::IoCtx& ioctx, Watcher *watcher,
+AcquireRequest<I>::AcquireRequest(librados::IoCtx& ioctx, Watcher<I> *watcher,
                                   ContextWQ *work_queue, const string& oid,
                                   const string& cookie, bool exclusive,
                                   bool blacklist_on_break_lock,

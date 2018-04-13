@@ -2,9 +2,10 @@
 // vim: ts=8 sw=2 smarttab
 
 #include "librbd/Watcher.h"
-#include "librbd/watcher/RewatchRequest.h"
+#include "librbd/ImageCtx.h"
 #include "librbd/Utils.h"
 #include "librbd/TaskFinisher.h"
+#include "librbd/watcher/RewatchRequest.h"
 #include "include/encoding.h"
 #include "common/errno.h"
 #include "common/WorkQueue.h"
@@ -70,7 +71,8 @@ struct C_UnwatchAndFlush : public Context {
 #define dout_prefix *_dout << "librbd::Watcher: " << this << " " << __func__ \
                            << ": "
 
-Watcher::Watcher(librados::IoCtx& ioctx, ContextWQ *work_queue,
+template <typename I>
+Watcher<I>::Watcher(librados::IoCtx& ioctx, ContextWQ *work_queue,
                           const string& oid)
   : m_ioctx(ioctx), m_work_queue(work_queue), m_oid(oid),
     m_cct(reinterpret_cast<CephContext *>(ioctx.cct())),
@@ -79,12 +81,14 @@ Watcher::Watcher(librados::IoCtx& ioctx, ContextWQ *work_queue,
     m_watch_state(WATCH_STATE_UNREGISTERED), m_watch_ctx(*this) {
 }
 
-Watcher::~Watcher() {
+template <typename I>
+Watcher<I>::~Watcher() {
   RWLock::RLocker l(m_watch_lock);
   assert(m_watch_state != WATCH_STATE_REGISTERED);
 }
 
-void Watcher::register_watch(Context *on_finish) {
+template <typename I>
+void Watcher<I>::register_watch(Context *on_finish) {
   ldout(m_cct, 10) << dendl;
 
   RWLock::RLocker watch_locker(m_watch_lock);
@@ -98,7 +102,8 @@ void Watcher::register_watch(Context *on_finish) {
   aio_comp->release();
 }
 
-void Watcher::handle_register_watch(int r, Context *on_finish) {
+template <typename I>
+void Watcher<I>::handle_register_watch(int r, Context *on_finish) {
   ldout(m_cct, 10) << "r=" << r << dendl;
   Context *unregister_watch_ctx = nullptr;
   {
@@ -124,7 +129,8 @@ void Watcher::handle_register_watch(int r, Context *on_finish) {
   }
 }
 
-void Watcher::unregister_watch(Context *on_finish) {
+template <typename I>
+void Watcher<I>::unregister_watch(Context *on_finish) {
   ldout(m_cct, 10) << dendl;
 
   {
@@ -157,7 +163,8 @@ void Watcher::unregister_watch(Context *on_finish) {
   on_finish->complete(0);
 }
 
-bool Watcher::notifications_blocked() const {
+template <typename I>
+bool Watcher<I>::notifications_blocked() const {
   RWLock::RLocker locker(m_watch_lock);
 
   bool blocked = (m_blocked_count > 0);
@@ -165,7 +172,8 @@ bool Watcher::notifications_blocked() const {
   return blocked;
 }
 
-void Watcher::block_notifies(Context *on_finish) {
+template <typename I>
+void Watcher<I>::block_notifies(Context *on_finish) {
   {
     RWLock::WLocker locker(m_watch_lock);
     ++m_blocked_count;
@@ -174,30 +182,35 @@ void Watcher::block_notifies(Context *on_finish) {
   m_async_op_tracker.wait_for_ops(on_finish);
 }
 
-void Watcher::unblock_notifies() {
+template <typename I>
+void Watcher<I>::unblock_notifies() {
   RWLock::WLocker locker(m_watch_lock);
   assert(m_blocked_count > 0);
   --m_blocked_count;
   ldout(m_cct, 5) << "blocked_count=" << m_blocked_count << dendl;
 }
 
-void Watcher::flush(Context *on_finish) {
+template <typename I>
+void Watcher<I>::flush(Context *on_finish) {
   m_notifier.flush(on_finish);
 }
 
-std::string Watcher::get_oid() const {
+template <typename I>
+std::string Watcher<I>::get_oid() const {
   RWLock::RLocker locker(m_watch_lock);
   return m_oid;
 }
 
-void Watcher::set_oid(const string& oid) {
+template <typename I>
+void Watcher<I>::set_oid(const string& oid) {
   RWLock::WLocker l(m_watch_lock);
   assert(m_watch_state == WATCH_STATE_UNREGISTERED);
 
   m_oid = oid;
 }
 
-void Watcher::handle_error(uint64_t handle, int err) {
+template <typename I>
+void Watcher<I>::handle_error(uint64_t handle, int err) {
   lderr(m_cct) << "handle=" << handle << ": " << cpp_strerror(err) << dendl;
 
   RWLock::WLocker l(m_watch_lock);
@@ -205,17 +218,19 @@ void Watcher::handle_error(uint64_t handle, int err) {
     m_watch_state = WATCH_STATE_ERROR;
 
     FunctionContext *ctx = new FunctionContext(
-        boost::bind(&Watcher::rewatch, this));
+        boost::bind(&Watcher<I>::rewatch, this));
     m_work_queue->queue(ctx);
   }
 }
 
-void Watcher::acknowledge_notify(uint64_t notify_id, uint64_t handle,
+template <typename I>
+void Watcher<I>::acknowledge_notify(uint64_t notify_id, uint64_t handle,
 	                         bufferlist &out) {
   m_ioctx.notify_ack(m_oid, notify_id, handle, out);
 }
 
-void Watcher::rewatch() {
+template <typename I>
+void Watcher<I>::rewatch() {
   ldout(m_cct, 10) << dendl;
 
   RWLock::WLocker l(m_watch_lock);
@@ -225,14 +240,15 @@ void Watcher::rewatch() {
   m_watch_state = WATCH_STATE_REWATCHING;
 
   Context *ctx = create_context_callback<Watcher,
-                                         &Watcher::handle_rewatch>(this);
+                                         &Watcher<I>::handle_rewatch>(this);
   RewatchRequest *req = RewatchRequest::create(m_ioctx, m_oid, m_watch_lock,
                                                &m_watch_ctx,
                                                &m_watch_handle, ctx);
   req->send();
 }
 
-void Watcher::handle_rewatch(int r) {
+template <typename I>
+void Watcher<I>::handle_rewatch(int r) {
   ldout(m_cct, 10) "r=" << r << dendl;
 
   WatchState next_watch_state = WATCH_STATE_REGISTERED;
@@ -252,7 +268,7 @@ void Watcher::handle_rewatch(int r) {
 
     m_work_queue->queue(
       create_context_callback<Watcher,
-                              &Watcher::handle_rewatch_complete>(this), r);
+                              &Watcher<I>::handle_rewatch_complete>(this), r);
   }
 
   // wake up pending unregister request
@@ -261,13 +277,15 @@ void Watcher::handle_rewatch(int r) {
   }
 }
 
-void Watcher::send_notify(bufferlist& payload,
+template <typename I>
+void Watcher<I>::send_notify(bufferlist& payload,
                           watcher::NotifyResponse *response,
                           Context *on_finish) {
   m_notifier.notify(payload, response, on_finish);
 }
 
-void Watcher::WatchCtx::handle_notify(uint64_t notify_id, uint64_t handle,
+template <typename I>
+void Watcher<I>::WatchCtx::handle_notify(uint64_t notify_id, uint64_t handle,
                                       uint64_t notifier_id, bufferlist& bl) {
   // if notifications are blocked, finish the notification w/o
   // bubbling the notification up to the derived class
@@ -281,8 +299,11 @@ void Watcher::WatchCtx::handle_notify(uint64_t notify_id, uint64_t handle,
   watcher.m_async_op_tracker.finish_op();
 }
 
-void Watcher::WatchCtx::handle_error(uint64_t handle, int err) {
+template <typename I>
+void Watcher<I>::WatchCtx::handle_error(uint64_t handle, int err) {
   watcher.handle_error(handle, err);
 }
 
 } // namespace librbd
+
+template class librbd::Watcher<librbd::ImageCtx>;

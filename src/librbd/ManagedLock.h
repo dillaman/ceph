@@ -10,7 +10,6 @@
 #include "common/AsyncOpTracker.h"
 #include "common/Mutex.h"
 #include "cls/lock/cls_lock_types.h"
-#include "librbd/watcher/Types.h"
 #include "librbd/managed_lock/Types.h"
 #include <list>
 #include <string>
@@ -21,14 +20,14 @@ class ContextWQ;
 namespace librbd {
 
 struct ImageCtx;
+template <typename> class Watcher;
 
 namespace managed_lock { struct Locker; }
 
 template <typename ImageCtxT = librbd::ImageCtx>
 class ManagedLock {
 private:
-  typedef watcher::Traits<ImageCtxT> TypeTraits;
-  typedef typename TypeTraits::Watcher Watcher;
+  typedef librbd::Watcher<ImageCtxT> Watcher;
 
 public:
   static ManagedLock *create(librados::IoCtx& ioctx, ContextWQ *work_queue,

@@ -15,13 +15,6 @@
 #include <list>
 
 namespace librbd {
-namespace watcher {
-template <>
-struct Traits<MockImageCtx> {
-  typedef librbd::MockImageWatcher Watcher;
-};
-}
-
 namespace managed_lock {
 
 template<>
@@ -80,7 +73,6 @@ GetLockerRequest<librbd::MockImageCtx> *GetLockerRequest<librbd::MockImageCtx>::
 
 // template definitions
 #include "librbd/managed_lock/AcquireRequest.cc"
-template class librbd::managed_lock::AcquireRequest<librbd::MockImageCtx>;
 
 namespace {
 

@@ -21,7 +21,7 @@ template <typename> struct HandlePayloadVisitor;
 } // namespace watcher
 
 template <typename ImageCtxT = librbd::ImageCtx>
-class TrashWatcher : public Watcher {
+class TrashWatcher : public Watcher<ImageCtxT> {
   friend struct watcher::util::HandlePayloadVisitor<TrashWatcher<ImageCtxT>>;
 public:
   TrashWatcher(librados::IoCtx &io_ctx, ContextWQ *work_queue);

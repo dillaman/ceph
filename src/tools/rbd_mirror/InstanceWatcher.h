@@ -36,10 +36,11 @@ template <typename> class InstanceReplayer;
 template <typename> struct Threads;
 
 template <typename ImageCtxT = librbd::ImageCtx>
-class InstanceWatcher : protected librbd::Watcher {
+class InstanceWatcher : protected librbd::Watcher<ImageCtxT> {
   typedef librbd::watcher::util::C_NotifyAck<InstanceWatcher> C_NotifyAck;
 
-  using librbd::Watcher::unregister_watch; // Silence overloaded virtual warning
+  // Silence overloaded virtual warning
+  using librbd::Watcher<ImageCtxT>::unregister_watch;
 public:
   static void get_instances(librados::IoCtx &io_ctx,
                             std::vector<std::string> *instance_ids,
@@ -56,7 +57,7 @@ public:
     delete this;
   }
 
-  using librbd::Watcher::acknowledge_notify;
+  using librbd::Watcher<ImageCtxT>::acknowledge_notify;
 
   InstanceWatcher(librados::IoCtx &io_ctx, ContextWQ *work_queue,
                   InstanceReplayer<ImageCtxT> *instance_replayer,

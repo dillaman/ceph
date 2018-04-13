@@ -28,7 +28,7 @@ static const uint64_t NOTIFY_TIMEOUT_MS = 5000;
 template <typename I>
 MirroringWatcher<I>::MirroringWatcher(librados::IoCtx &io_ctx,
                                       ContextWQ *work_queue)
-  : Watcher(io_ctx, work_queue, RBD_MIRRORING) {
+  : Watcher<I>(io_ctx, work_queue, RBD_MIRRORING) {
 }
 
 template <typename I>

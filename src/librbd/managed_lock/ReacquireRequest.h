@@ -11,9 +11,6 @@
 class Context;
 
 namespace librbd {
-
-class Watcher;
-
 namespace managed_lock {
 
 template <typename ImageCtxT>

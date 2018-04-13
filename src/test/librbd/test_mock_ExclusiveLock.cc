@@ -27,13 +27,6 @@ struct MockExclusiveLockImageCtx : public MockImageCtx {
 
 } // anonymous namespace
 
-namespace watcher {
-template <>
-struct Traits<MockExclusiveLockImageCtx> {
-  typedef librbd::MockImageWatcher Watcher;
-};
-}
-
 template <>
 struct ManagedLock<MockExclusiveLockImageCtx> {
   ManagedLock(librados::IoCtx& ioctx, ContextWQ *work_queue,

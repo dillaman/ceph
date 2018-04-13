@@ -26,8 +26,9 @@ namespace mirror {
 template <typename> struct Threads;
 
 template <typename ImageCtxT = librbd::ImageCtx>
-class LeaderWatcher : protected librbd::Watcher {
-  using librbd::Watcher::unregister_watch; // Silence overloaded virtual warning
+class LeaderWatcher : protected librbd::Watcher<ImageCtxT> {
+  // Silence overloaded virtual warning
+  using librbd::Watcher<ImageCtxT>::unregister_watch;
 public:
   static LeaderWatcher* create(Threads<ImageCtxT> *threads,
                                librados::IoCtx &io_ctx,
@@ -35,7 +36,7 @@ public:
     return new LeaderWatcher(threads, io_ctx, listener);
   }
 
-  using librbd::Watcher::acknowledge_notify;
+  using librbd::Watcher<ImageCtxT>::acknowledge_notify;
 
   LeaderWatcher(Threads<ImageCtxT> *threads, librados::IoCtx &io_ctx,
                 leader_watcher::Listener *listener);

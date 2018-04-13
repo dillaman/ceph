@@ -9,7 +9,6 @@
 #include "include/buffer.h"
 #include "msg/msg_types.h"
 #include "librbd/managed_lock/Types.h"
-#include "librbd/watcher/Types.h"
 #include <string>
 
 class Context;
@@ -17,18 +16,15 @@ class ContextWQ;
 
 namespace librbd {
 
-class Watcher;
+template <typename> class Watcher;
 
 namespace managed_lock {
 
 template <typename ImageCtxT>
 class AcquireRequest {
-private:
-  typedef watcher::Traits<ImageCtxT> TypeTraits;
-  typedef typename TypeTraits::Watcher Watcher;
-
 public:
-  static AcquireRequest* create(librados::IoCtx& ioctx, Watcher *watcher,
+  static AcquireRequest* create(librados::IoCtx& ioctx,
+                                Watcher<ImageCtxT> *watcher,
                                 ContextWQ *work_queue, const std::string& oid,
                                 const std::string& cookie,
                                 bool exclusive,
@@ -62,14 +58,14 @@ private:
    * @endverbatim
    */
 
-  AcquireRequest(librados::IoCtx& ioctx, Watcher *watcher,
+  AcquireRequest(librados::IoCtx& ioctx, Watcher<ImageCtxT> *watcher,
                  ContextWQ *work_queue, const std::string& oid,
                  const std::string& cookie, bool exclusive,
                  bool blacklist_on_break_lock,
                  uint32_t blacklist_expire_seconds, Context *on_finish);
 
   librados::IoCtx& m_ioctx;
-  Watcher *m_watcher;
+  Watcher<ImageCtxT> *m_watcher;
   CephContext *m_cct;
   ContextWQ *m_work_queue;
   std::string m_oid;

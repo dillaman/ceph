@@ -10,18 +10,8 @@
 #include "gtest/gtest.h"
 #include <list>
 
-namespace librbd {
-namespace watcher {
-template <>
-struct Traits<MockImageCtx> {
-  typedef librbd::MockImageWatcher Watcher;
-};
-}
-}
-
 // template definitions
 #include "librbd/managed_lock/ReleaseRequest.cc"
-template class librbd::managed_lock::ReleaseRequest<librbd::MockImageCtx>;
 
 namespace librbd {
 namespace managed_lock {

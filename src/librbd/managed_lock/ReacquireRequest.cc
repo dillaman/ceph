@@ -2,7 +2,6 @@
 // vim: ts=8 sw=2 smarttab
 
 #include "librbd/managed_lock/ReacquireRequest.h"
-#include "librbd/Watcher.h"
 #include "cls/lock/cls_lock_client.h"
 #include "cls/lock/cls_lock_types.h"
 #include "common/dout.h"

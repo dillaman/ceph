@@ -11,9 +11,6 @@
 namespace ceph { class Formatter; }
 
 namespace librbd {
-
-class Watcher;
-
 namespace watcher {
 
 struct ClientId {
@@ -52,11 +49,6 @@ struct NotifyResponse {
 
   void encode(bufferlist& bl) const;
   void decode(bufferlist::iterator& it);
-};
-
-template <typename ImageCtxT>
-struct Traits {
-  typedef librbd::Watcher Watcher;
 };
 
 std::ostream &operator<<(std::ostream &out,

@@ -17,8 +17,10 @@ class ContextWQ;
 
 namespace librbd {
 
+struct ImageCtx;
 namespace watcher { struct NotifyResponse; }
 
+template <typename ImageCtxT = librbd::ImageCtx>
 class Watcher {
 public:
   Watcher(librados::IoCtx& ioctx, ContextWQ *work_queue,
@@ -154,5 +156,7 @@ private:
 };
 
 } // namespace librbd
+
+extern template class librbd::Watcher<librbd::ImageCtx>;
 
 #endif // CEPH_LIBRBD_WATCHER_H

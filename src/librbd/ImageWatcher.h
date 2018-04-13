@@ -30,7 +30,7 @@ class ImageCtx;
 template <typename> class TaskFinisher;
 
 template <typename ImageCtxT = ImageCtx>
-class ImageWatcher : public Watcher {
+class ImageWatcher : public Watcher<ImageCtxT> {
   typedef watcher::util::C_NotifyAck<ImageWatcher> C_NotifyAck;
   friend struct watcher::util::HandlePayloadVisitor<ImageWatcher<ImageCtxT>>;
 

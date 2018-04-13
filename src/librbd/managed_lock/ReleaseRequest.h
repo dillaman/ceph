@@ -5,7 +5,6 @@
 #define CEPH_LIBRBD_MANAGED_LOCK_RELEASE_REQUEST_H
 
 #include "include/rados/librados.hpp"
-#include "librbd/watcher/Types.h"
 #include <string>
 
 class Context;
@@ -13,18 +12,15 @@ class ContextWQ;
 
 namespace librbd {
 
-class Watcher;
+template <typename> class Watcher;
 
 namespace managed_lock {
 
 template <typename ImageCtxT>
 class ReleaseRequest {
-private:
-  typedef watcher::Traits<ImageCtxT> TypeTraits;
-  typedef typename TypeTraits::Watcher Watcher;
-
 public:
-  static ReleaseRequest* create(librados::IoCtx& ioctx, Watcher *watcher,
+  static ReleaseRequest* create(librados::IoCtx& ioctx,
+                                Watcher<ImageCtxT> *watcher,
                                 ContextWQ *work_queue,
                                 const std::string& oid,
                                 const std::string& cookie,
@@ -48,12 +44,12 @@ private:
    * @endverbatim
    */
 
-  ReleaseRequest(librados::IoCtx& ioctx, Watcher *watcher,
+  ReleaseRequest(librados::IoCtx& ioctx, Watcher<ImageCtxT> *watcher,
                  ContextWQ *work_queue, const std::string& oid,
                  const std::string& cookie, Context *on_finish);
 
   librados::IoCtx& m_ioctx;
-  Watcher *m_watcher;
+  Watcher<ImageCtxT> *m_watcher;
   std::string m_oid;
   std::string m_cookie;
   Context *m_on_finish;
