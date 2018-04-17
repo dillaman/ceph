@@ -6,7 +6,6 @@
 #include "librbd/ExclusiveLock.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/ObjectMap.h"
-#include "librbd/Operations.h"
 #include "librbd/Utils.h"
 #include "librbd/deep_copy/ImageCopyRequest.h"
 #include "librbd/deep_copy/MetadataCopyRequest.h"
@@ -120,6 +119,10 @@ void DeepCopyRequest<I>::handle_copy_snapshots(int r) {
                  << dendl;
     finish(r);
     return;
+  }
+
+  if (m_snap_id_end == CEPH_NOSNAP) {
+    (*m_snap_seqs)[CEPH_NOSNAP] = CEPH_NOSNAP;
   }
 
   send_copy_image();

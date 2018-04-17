@@ -244,8 +244,14 @@ bool compare_by_name(const child_info_t& c1, const child_info_t& c2)
       off += r;
     } while (r == READ_SIZE);
 
+    static_assert(sizeof(RBD_HEADER_TEXT) == sizeof(RBD_MIGRATE_HEADER_TEXT),
+                  "length of rbd headers must be the same");
+
     if (header.length() < sizeof(RBD_HEADER_TEXT) ||
-	memcmp(RBD_HEADER_TEXT, header.c_str(), sizeof(RBD_HEADER_TEXT))) {
+        (memcmp(RBD_HEADER_TEXT, header.c_str(),
+                sizeof(RBD_HEADER_TEXT)) != 0 &&
+         memcmp(RBD_MIGRATE_HEADER_TEXT, header.c_str(),
+                sizeof(RBD_MIGRATE_HEADER_TEXT)) != 0)) {
       CephContext *cct = (CephContext *)io_ctx.cct();
       lderr(cct) << "unrecognized header format" << dendl;
       return -ENXIO;
@@ -591,7 +597,7 @@ bool compare_by_name(const child_info_t& c1, const child_info_t& c2)
 
       for (auto &id_it : info.second) {
 	ImageCtx *imctx = new ImageCtx("", id_it, NULL, ioctx, false);
-	int r = imctx->state->open(false);
+	int r = imctx->state->open(0);
 	if (r < 0) {
 	  lderr(cct) << "error opening image: "
 		     << cpp_strerror(r) << dendl;
@@ -932,7 +938,7 @@ bool compare_by_name(const child_info_t& c1, const child_info_t& c2)
 
     // make sure parent snapshot exists
     ImageCtx *p_imctx = new ImageCtx(p_name, "", p_snap_name, p_ioctx, true);
-    int r = p_imctx->state->open(false);
+    int r = p_imctx->state->open(0);
     if (r < 0) {
       lderr(cct) << "error opening parent image: "
 		 << cpp_strerror(r) << dendl;
@@ -988,7 +994,7 @@ bool compare_by_name(const child_info_t& c1, const child_info_t& c2)
 		   << dstname << dendl;
 
     ImageCtx *ictx = new ImageCtx(srcname, "", "", io_ctx, false);
-    int r = ictx->state->open(false);
+    int r = ictx->state->open(0);
     if (r < 0) {
       lderr(cct) << "error opening source image: " << cpp_strerror(r) << dendl;
       return r;
@@ -1090,7 +1096,7 @@ bool compare_by_name(const child_info_t& c1, const child_info_t& c2)
       }
     }
 
-    if (parent_snap_name) {
+    if (parent_snap_name && parent_spec.snap_id != CEPH_NOSNAP) {
       RWLock::RLocker l(ictx->parent->snap_lock);
       r = ictx->parent->get_snap_name(parent_spec.snap_id,
 				      parent_snap_name);
@@ -1366,7 +1372,7 @@ bool compare_by_name(const child_info_t& c1, const child_info_t& c2)
 
     ImageCtx *ictx = new ImageCtx((image_id.empty() ? image_name : ""),
                                   image_id, nullptr, io_ctx, false);
-    r = ictx->state->open(true);
+    r = ictx->state->open(OPEN_FLAG_SKIP_OPEN_PARENT);
     if (r == -ENOENT) {
       return r;
     } else if (r < 0) {
@@ -1392,6 +1398,12 @@ bool compare_by_name(const child_info_t& c1, const child_info_t& c2)
       }
     }
     ictx->owner_lock.put_read();
+
+    if (!ictx->migration_info.empty()) {
+      lderr(cct) << "cannot move migrating image to trash" << dendl;
+      ictx->state->close();
+      return -EINVAL;
+    }
 
     utime_t delete_time{ceph_clock_now()};
     utime_t deferment_end_time{delete_time};
@@ -1769,7 +1781,7 @@ bool compare_by_name(const child_info_t& c1, const child_info_t& c2)
 
     ImageCtx *dest = new librbd::ImageCtx(destname, "", NULL,
 					  dest_md_ctx, false);
-    r = dest->state->open(false);
+    r = dest->state->open(0);
     if (r < 0) {
       lderr(cct) << "failed to read newly created header" << dendl;
       return r;

@@ -301,7 +301,8 @@ void ObjectCopyRequest<I>::send_write_object() {
     });
   librados::AioCompletion *comp = create_rados_callback(ctx);
   int r = m_dst_io_ctx.aio_operate(m_dst_oid, comp, &op, dst_snap_seq,
-                                   dst_snap_ids);
+                                   dst_snap_ids, librados::OPERATION_ORDERSNAP,
+                                   nullptr);
   assert(r == 0);
   comp->release();
 }
@@ -311,6 +312,9 @@ void ObjectCopyRequest<I>::handle_write_object(int r) {
   ldout(m_cct, 20) << "r=" << r << dendl;
 
   if (r == -ENOENT) {
+    r = 0;
+  } else if (r == -EOLDSNAPC) {
+    ldout(m_cct, 10) << "concurrent deep copy" << dendl;
     r = 0;
   }
   if (r < 0) {

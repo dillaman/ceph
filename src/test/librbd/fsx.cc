@@ -362,13 +362,13 @@ int create_replay_image(rados_ioctx_t ioctx, int order,
 
         int r;
         librbd::RBD rbd;
+        uint64_t features = RBD_FEATURES_ALL & ~RBD_FEATURES_IMPLICIT_ENABLE;
         if (last_replay_image_name == nullptr) {
-                r = rbd.create2(io_ctx, replay_image_name, 0,
-                                RBD_FEATURES_ALL, &order);
+                r = rbd.create2(io_ctx, replay_image_name, 0, features, &order);
         } else {
                 r = rbd.clone2(io_ctx, last_replay_image_name, "snap",
-                               io_ctx, replay_image_name, RBD_FEATURES_ALL,
-                               &order, stripe_unit, stripe_count);
+                               io_ctx, replay_image_name, features, &order,
+                               stripe_unit, stripe_count);
         }
 
         if (r < 0) {
@@ -848,7 +848,7 @@ __librbd_clone(struct rbd_ctx *ctx, const char *src_snapname,
 		return ret;
 	}
 
-	uint64_t features = RBD_FEATURES_ALL;
+	uint64_t features = RBD_FEATURES_ALL & ~RBD_FEATURES_IMPLICIT_ENABLE;
 	if (krbd) {
 		features &= ~(RBD_FEATURE_OBJECT_MAP     |
                               RBD_FEATURE_FAST_DIFF      |
