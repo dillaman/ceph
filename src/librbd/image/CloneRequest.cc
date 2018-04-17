@@ -15,7 +15,8 @@
 
 #define dout_subsys ceph_subsys_rbd
 #undef dout_prefix
-#define dout_prefix *_dout << "librbd::image::CloneRequest: "
+#define dout_prefix *_dout << "librbd::image::CloneRequest: " << this << " " \
+                           << __func__ << ": "
 
 #define MAX_KEYS 64
 
@@ -58,13 +59,13 @@ CloneRequest<I>::CloneRequest(I *p_imctx, IoCtx &c_ioctx,
 
 template <typename I>
 void CloneRequest<I>::send() {
-  ldout(m_cct, 20) << this << " " << __func__ << dendl;
+  ldout(m_cct, 20) << dendl;
   validate_options();
 }
 
 template <typename I>
 void CloneRequest<I>::validate_options() {
-  ldout(m_cct, 20) << this << " " << __func__ << dendl;
+  ldout(m_cct, 20) << dendl;
 
   uint64_t format = 0;
   m_opts.get(RBD_IMAGE_OPTION_FORMAT, &format);
@@ -108,7 +109,7 @@ void CloneRequest<I>::validate_options() {
 
 template <typename I>
 void CloneRequest<I>::validate_parent() {
-  ldout(m_cct, 20) << this << " " << __func__ << dendl;
+  ldout(m_cct, 20) << dendl;
 
   if (m_p_imctx->operations_disabled) {
     lderr(m_cct) << "image operations disabled due to unsupported op features"
@@ -155,12 +156,12 @@ void CloneRequest<I>::validate_parent() {
     return;
   }
 
-  send_validate_child();
+  validate_child();
 }
 
 template <typename I>
-void CloneRequest<I>::send_validate_child() {
-  ldout(m_cct, 20) << this << " " << __func__ << dendl;
+void CloneRequest<I>::validate_child() {
+  ldout(m_cct, 20) << dendl;
 
   using klass = CloneRequest<I>;
   librados::AioCompletion *comp = create_rados_callback<
@@ -177,7 +178,7 @@ void CloneRequest<I>::send_validate_child() {
 
 template <typename I>
 void CloneRequest<I>::handle_validate_child(int r) {
-  ldout(m_cct, 20) << this << " " << __func__ << " r=" << r << dendl;
+  ldout(m_cct, 20) << "r=" << r << dendl;
 
   if (r != -ENOENT) {
     lderr(m_cct) << "rbd image " << m_name << " already exists" << dendl;
@@ -185,12 +186,12 @@ void CloneRequest<I>::handle_validate_child(int r) {
     return;
   }
 
-  send_create();
+  create_child();
 }
 
 template <typename I>
-void CloneRequest<I>::send_create() {
-  ldout(m_cct, 20) << this << " " << __func__ << dendl;
+void CloneRequest<I>::create_child() {
+  ldout(m_cct, 20) << dendl;
 
   if (m_use_p_features) {
     m_features = m_p_features;
@@ -208,7 +209,8 @@ void CloneRequest<I>::send_create() {
   m_opts.set(RBD_IMAGE_OPTION_FEATURES, m_features);
 
   using klass = CloneRequest<I>;
-  Context *ctx = create_context_callback<klass, &klass::handle_create>(this);
+  Context *ctx = create_context_callback<
+    klass, &klass::handle_create_child>(this);
 
   RWLock::RLocker snap_locker(m_p_imctx->snap_lock);
   CreateRequest<I> *req = CreateRequest<I>::create(
@@ -218,46 +220,47 @@ void CloneRequest<I>::send_create() {
 }
 
 template <typename I>
-void CloneRequest<I>::handle_create(int r) {
-  ldout(m_cct, 20) << this << " " << __func__ << " r=" << r << dendl;
+void CloneRequest<I>::handle_create_child(int r) {
+  ldout(m_cct, 20) << "r=" << r << dendl;
 
   if (r < 0) {
     lderr(m_cct) << "error creating child: " << cpp_strerror(r) << dendl;
     complete(r);
     return;
   }
-  send_open();
+  open_child();
 }
 
 template <typename I>
-void CloneRequest<I>::send_open() {
-  ldout(m_cct, 20) << this << " " << __func__ << dendl;
+void CloneRequest<I>::open_child() {
+  ldout(m_cct, 20) << dendl;
 
   m_imctx = I::create(m_name, "", NULL, m_ioctx, false);
 
   using klass = CloneRequest<I>;
-  Context *ctx = create_context_callback<klass, &klass::handle_open>(this);
+  Context *ctx = create_context_callback<
+    klass, &klass::handle_open_child>(this);
 
   m_imctx->state->open(OPEN_FLAG_SKIP_OPEN_PARENT, ctx);
 }
 
 template <typename I>
-void CloneRequest<I>::handle_open(int r) {
-  ldout(m_cct, 20) << this << " " << __func__ << " r=" << r << dendl;
+void CloneRequest<I>::handle_open_child(int r) {
+  ldout(m_cct, 20) << "r=" << r << dendl;
 
   if (r < 0) {
     lderr(m_cct) << "Error opening new image: " << cpp_strerror(r) << dendl;
     m_r_saved = r;
-    send_remove();
+    remove_child();
     return;
   }
 
-  send_set_parent();
+  set_parent();
 }
 
 template <typename I>
-void CloneRequest<I>::send_set_parent() {
-  ldout(m_cct, 20) << this << " " << __func__ << dendl;
+void CloneRequest<I>::set_parent() {
+  ldout(m_cct, 20) << dendl;
 
   librados::ObjectWriteOperation op;
   librbd::cls_client::set_parent(&op, m_pspec, m_size);
@@ -272,26 +275,26 @@ void CloneRequest<I>::send_set_parent() {
 
 template <typename I>
 void CloneRequest<I>::handle_set_parent(int r) {
-  ldout(m_cct, 20) << this << " " << __func__ << " r=" << r << dendl;
+  ldout(m_cct, 20) << "r=" << r << dendl;
 
   if (r < 0) {
     lderr(m_cct) << "couldn't set parent: " << cpp_strerror(r) << dendl;
     m_r_saved = r;
-    send_close();
+    close_child();
     return;
   }
 
-  send_v2_set_op_feature();
+  v2_set_op_feature();
 }
 
 template <typename I>
-void CloneRequest<I>::send_v2_set_op_feature() {
+void CloneRequest<I>::v2_set_op_feature() {
   if (m_clone_format == 1) {
-    send_v1_add_child();
+    v1_add_child();
     return;
   }
 
-  ldout(m_cct, 20) << this << " " << __func__ << dendl;
+  ldout(m_cct, 20) << dendl;
 
   librados::ObjectWriteOperation op;
   cls_client::op_features_set(&op, RBD_OPERATION_FEATURE_CLONE_CHILD,
@@ -306,21 +309,21 @@ void CloneRequest<I>::send_v2_set_op_feature() {
 
 template <typename I>
 void CloneRequest<I>::handle_v2_set_op_feature(int r) {
-  ldout(m_cct, 20) << this << " " << __func__ << " r=" << r << dendl;
+  ldout(m_cct, 20) << "r=" << r << dendl;
 
   if (r < 0) {
     lderr(m_cct) << "failed to enable clone v2: " << cpp_strerror(r) << dendl;
     m_r_saved = r;
-    send_close();
+    close_child();
     return;
   }
 
-  send_v2_child_attach();
+  v2_child_attach();
 }
 
 template <typename I>
-void CloneRequest<I>::send_v2_child_attach() {
-  ldout(m_cct, 20) << this << " " << __func__ << dendl;
+void CloneRequest<I>::v2_child_attach() {
+  ldout(m_cct, 20) << dendl;
 
   librados::ObjectWriteOperation op;
   cls_client::child_attach(&op, m_p_imctx->snap_id,
@@ -335,22 +338,22 @@ void CloneRequest<I>::send_v2_child_attach() {
 
 template <typename I>
 void CloneRequest<I>::handle_v2_child_attach(int r) {
-  ldout(m_cct, 20) << this << " " << __func__ << " r=" << r << dendl;
+  ldout(m_cct, 20) << "r=" << r << dendl;
 
   if (r < 0) {
     lderr(m_cct) << "failed to attach child image: " << cpp_strerror(r)
                  << dendl;
     m_r_saved = r;
-    send_close();
+    close_child();
     return;
   }
 
-  send_metadata_list();
+  metadata_list();
 }
 
 template <typename I>
-void CloneRequest<I>::send_v1_add_child() {
-  ldout(m_cct, 20) << this << " " << __func__ << dendl;
+void CloneRequest<I>::v1_add_child() {
+  ldout(m_cct, 20) << dendl;
 
   librados::ObjectWriteOperation op;
   cls_client::add_child(&op, m_pspec, m_id);
@@ -365,21 +368,21 @@ void CloneRequest<I>::send_v1_add_child() {
 
 template <typename I>
 void CloneRequest<I>::handle_v1_add_child(int r) {
-  ldout(m_cct, 20) << this << " " << __func__ << " r=" << r << dendl;
+  ldout(m_cct, 20) << "r=" << r << dendl;
 
   if (r < 0) {
     lderr(m_cct) << "couldn't add child: " << cpp_strerror(r) << dendl;
     m_r_saved = r;
-    send_close();
+    close_child();
     return;
   }
 
-  send_v1_refresh();
+  v1_refresh();
 }
 
 template <typename I>
-void CloneRequest<I>::send_v1_refresh() {
-  ldout(m_cct, 20) << this << " " << __func__ << dendl;
+void CloneRequest<I>::v1_refresh() {
+  ldout(m_cct, 20) << dendl;
 
   using klass = CloneRequest<I>;
   RefreshRequest<I> *req = RefreshRequest<I>::create(
@@ -390,7 +393,7 @@ void CloneRequest<I>::send_v1_refresh() {
 
 template <typename I>
 void CloneRequest<I>::handle_v1_refresh(int r) {
-  ldout(m_cct, 20) << this << " " << __func__ << " r=" << r << dendl;
+  ldout(m_cct, 20) << "r=" << r << dendl;
 
   bool snap_protected = false;
   if (r == 0) {
@@ -401,16 +404,16 @@ void CloneRequest<I>::handle_v1_refresh(int r) {
 
   if (r < 0 || !snap_protected) {
     m_r_saved = -EINVAL;
-    send_close();
+    close_child();
     return;
   }
 
-  send_metadata_list();
+  metadata_list();
 }
 
 template <typename I>
-void CloneRequest<I>::send_metadata_list() {
-  ldout(m_cct, 20) << this << " " << __func__ << ": "
+void CloneRequest<I>::metadata_list() {
+  ldout(m_cct, 20) << ": "
                    << "start_key=" << m_last_metadata_key << dendl;
 
   librados::ObjectReadOperation op;
@@ -427,7 +430,7 @@ void CloneRequest<I>::send_metadata_list() {
 
 template <typename I>
 void CloneRequest<I>::handle_metadata_list(int r) {
-  ldout(m_cct, 20) << this << " " << __func__ << " r=" << r << dendl;
+  ldout(m_cct, 20) << "r=" << r << dendl;
 
   map<string, bufferlist> metadata;
   if (r == 0) {
@@ -442,7 +445,7 @@ void CloneRequest<I>::handle_metadata_list(int r) {
     } else {
       lderr(m_cct) << "couldn't list metadata: " << cpp_strerror(r) << dendl;
       m_r_saved = r;
-      send_close();
+      close_child();
     }
     return;
   }
@@ -453,20 +456,20 @@ void CloneRequest<I>::handle_metadata_list(int r) {
   }
 
   if (metadata.size() == MAX_KEYS) {
-    send_metadata_list();
+    metadata_list();
   } else {
-    send_metadata_set();
+    metadata_set();
   }
 }
 
 template <typename I>
-void CloneRequest<I>::send_metadata_set() {
+void CloneRequest<I>::metadata_set() {
   if (m_pairs.empty()) {
     get_mirror_mode();
     return;
   }
 
-  ldout(m_cct, 20) << this << " " << __func__ << dendl;
+  ldout(m_cct, 20) << dendl;
 
   librados::ObjectWriteOperation op;
   cls_client::metadata_set(&op, m_pairs);
@@ -481,12 +484,12 @@ void CloneRequest<I>::send_metadata_set() {
 
 template <typename I>
 void CloneRequest<I>::handle_metadata_set(int r) {
-  ldout(m_cct, 20) << this << " " << __func__ << " r=" << r << dendl;
+  ldout(m_cct, 20) << "r=" << r << dendl;
 
   if (r < 0) {
     lderr(m_cct) << "couldn't set metadata: " << cpp_strerror(r) << dendl;
     m_r_saved = r;
-    send_close();
+    close_child();
   } else {
     get_mirror_mode();
   }
@@ -494,10 +497,10 @@ void CloneRequest<I>::handle_metadata_set(int r) {
 
 template <typename I>
 void CloneRequest<I>::get_mirror_mode() {
-  ldout(m_cct, 20) << this << " " << __func__ << dendl;
+  ldout(m_cct, 20) << dendl;
 
   if (!m_imctx->test_features(RBD_FEATURE_JOURNALING)) {
-    send_close();
+    close_child();
     return;
   }
 
@@ -515,7 +518,7 @@ void CloneRequest<I>::get_mirror_mode() {
 
 template <typename I>
 void CloneRequest<I>::handle_get_mirror_mode(int r) {
-  ldout(m_cct, 20) << this << " " << __func__ << " r=" << r << dendl;
+  ldout(m_cct, 20) << "r=" << r << dendl;
 
   if (r == 0) {
     bufferlist::iterator it = m_out_bl.begin();
@@ -527,20 +530,20 @@ void CloneRequest<I>::handle_get_mirror_mode(int r) {
                  << dendl;
 
     m_r_saved = r;
-    send_close();
+    close_child();
   } else {
     if (m_mirror_mode == cls::rbd::MIRROR_MODE_POOL ||
 	!m_non_primary_global_image_id.empty()) {
-      send_enable_mirror();
+      enable_mirror();
     } else {
-      send_close();
+      close_child();
     }
   }
 }
 
 template <typename I>
-void CloneRequest<I>::send_enable_mirror() {
-  ldout(m_cct, 20) << this << " " << __func__ << dendl;
+void CloneRequest<I>::enable_mirror() {
+  ldout(m_cct, 20) << dendl;
 
   using klass = CloneRequest<I>;
   Context *ctx = create_context_callback<
@@ -554,32 +557,32 @@ void CloneRequest<I>::send_enable_mirror() {
 
 template <typename I>
 void CloneRequest<I>::handle_enable_mirror(int r) {
-  ldout(m_cct, 20) << this << " " << __func__ << " r=" << r << dendl;
+  ldout(m_cct, 20) << "r=" << r << dendl;
 
   if (r < 0) {
     lderr(m_cct) << "failed to enable mirroring: " << cpp_strerror(r)
                << dendl;
     m_r_saved = r;
   }
-  send_close();
+  close_child();
 }
 
 template <typename I>
-void CloneRequest<I>::send_close() {
-  ldout(m_cct, 20) << this << " " << __func__ << dendl;
+void CloneRequest<I>::close_child() {
+  ldout(m_cct, 20) << dendl;
 
   assert(m_imctx != nullptr);
 
   using klass = CloneRequest<I>;
   Context *ctx = create_async_context_callback(
     *m_imctx, create_context_callback<
-      klass, &klass::handle_close>(this));
+      klass, &klass::handle_close_child>(this));
   m_imctx->state->close(ctx);
 }
 
 template <typename I>
-void CloneRequest<I>::handle_close(int r) {
-  ldout(m_cct, 20) << this << " " << __func__ << dendl;
+void CloneRequest<I>::handle_close_child(int r) {
+  ldout(m_cct, 20) << dendl;
 
   m_imctx->destroy();
   m_imctx = nullptr;
@@ -593,16 +596,17 @@ void CloneRequest<I>::handle_close(int r) {
   if (m_r_saved == 0) {
     complete(0);
   } else {
-    send_remove();
+    remove_child();
   }
 }
 
 template <typename I>
-void CloneRequest<I>::send_remove() {
-  ldout(m_cct, 20) << this << " " << __func__ << dendl;
+void CloneRequest<I>::remove_child() {
+  ldout(m_cct, 20) << dendl;
 
   using klass = CloneRequest<I>;
-  Context *ctx = create_context_callback<klass, &klass::handle_remove>(this);
+  Context *ctx = create_context_callback<
+    klass, &klass::handle_remove_child>(this);
 
   auto req = librbd::image::RemoveRequest<I>::create(
    m_ioctx, m_name, m_id, false, false, m_no_op, m_op_work_queue, ctx);
@@ -610,8 +614,8 @@ void CloneRequest<I>::send_remove() {
 }
 
 template <typename I>
-void CloneRequest<I>::handle_remove(int r) {
-  ldout(m_cct, 20) << this << " " << __func__ << " r=" << r << dendl;
+void CloneRequest<I>::handle_remove_child(int r) {
+  ldout(m_cct, 20) << "r=" << r << dendl;
 
   if (r < 0) {
     lderr(m_cct) << "Error removing failed clone: "
@@ -622,7 +626,7 @@ void CloneRequest<I>::handle_remove(int r) {
 
 template <typename I>
 void CloneRequest<I>::complete(int r) {
-  ldout(m_cct, 20) << this << " " << __func__ << " r=" << r << dendl;
+  ldout(m_cct, 20) << "r=" << r << dendl;
 
   if (r == 0) {
     ldout(m_cct, 20) << "done." << dendl;
