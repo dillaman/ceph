@@ -1393,13 +1393,18 @@ bool RefreshRequest<I>::get_migration_info(ParentInfo *parent_md,
     return false;
   }
 
+  uint64_t overlap = m_size;
+  for (auto& snap_info : m_snap_infos) {
+    overlap = std::max(overlap, snap_info.image_size);
+  }
+
   parent_md->spec.pool_id = m_migration_spec.pool_id;
   parent_md->spec.image_id = m_migration_spec.image_id;
   parent_md->spec.snap_id = CEPH_NOSNAP;
   parent_md->overlap = m_migration_spec.overlap;
 
   *migration_info = {m_migration_spec.pool_id, m_migration_spec.image_name,
-                     m_migration_spec.image_id, {}, m_migration_spec.overlap};
+                     m_migration_spec.image_id, {}, overlap};
 
   auto snap_seqs = m_migration_spec.snap_seqs;
   // If new snapshots have been created on destination image after
