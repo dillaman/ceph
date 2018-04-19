@@ -309,13 +309,13 @@ struct TestMigration : public TestFixture {
 
     for (int i = 0; i < nsnaps; i++) {
       for (int j = 0; j < nwrites; j++) {
-        size_t len = rand() % ((1 << m_ictx->order) * 2);
+        size_t len = 1024; //rand() % ((1 << m_ictx->order) * 2);
         ASSERT_GT(m_ictx->size, len);
         uint64_t off = std::min(static_cast<uint64_t>(rand() % m_ictx->size),
                                 static_cast<uint64_t>(m_ictx->size - len));
         write(off, len, start_char + i);
 
-        len = rand() % ((1 << m_ictx->order) * 2);
+        len = rand() % 1024;// ((1 << m_ictx->order) * 2);
         ASSERT_GT(m_ictx->size, len);
         off = std::min(static_cast<uint64_t>(rand() % m_ictx->size),
                        static_cast<uint64_t>(m_ictx->size - len));

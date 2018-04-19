@@ -181,7 +181,12 @@ Context *SetSnapRequest<I>::send_refresh_parent(int *result) {
     RWLock::RLocker snap_locker(m_image_ctx.snap_lock);
     RWLock::RLocker parent_locker(m_image_ctx.parent_lock);
 
-    const ParentInfo *parent_info = m_image_ctx.get_parent_info(m_snap_id);
+    uint64_t snap_id = m_snap_id;
+    if (!m_image_ctx.migration_info.empty()) {
+      // HEAD revision of parent_info contains the link to the migration source
+      snap_id = CEPH_NOSNAP;
+    }
+    const ParentInfo *parent_info = m_image_ctx.get_parent_info(snap_id);
     if (parent_info == nullptr) {
       *result = -ENOENT;
       lderr(cct) << "failed to retrieve snapshot parent info" << dendl;
