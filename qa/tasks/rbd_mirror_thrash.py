@@ -145,6 +145,14 @@ class RBDMirrorThrasher(Greenlet):
                 sleep(delay)
 
                 for daemon in killed_daemons:
+                    self.log('waiting for {label}'.format(label=daemon.id_))
+                    try:
+                        daemon.stop()
+                    except:
+                        # try to force a core-dump of the stuck process
+                        daemon.signal(signal.SIGABRT)
+                        raise
+                for daemon in killed_daemons:
                     self.log('reviving {label}'.format(label=daemon.id_))
                     daemon.start()
 
