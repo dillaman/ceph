@@ -243,27 +243,40 @@ void ParentImageSpec::generate_test_instances(std::list<ParentImageSpec*>& o) {
 }
 
 void ChildImageSpec::encode(bufferlist &bl) const {
-  ENCODE_START(1, 1, bl);
+  uint8_t min_version = 1;
+  if (!pool_namespace.empty()) {
+    // break backwards compatability if namespaces are used so that an
+    // older OSD will fail the request if namespaces aren't supported
+    min_version = 2;
+  }
+
+  ENCODE_START(2, min_version, bl);
   encode(pool_id, bl);
   encode(image_id, bl);
+  encode(pool_namespace, bl);
   ENCODE_FINISH(bl);
 }
 
 void ChildImageSpec::decode(bufferlist::const_iterator &it) {
-  DECODE_START(1, it);
+  DECODE_START(2, it);
   decode(pool_id, it);
   decode(image_id, it);
+  if (struct_v >= 2) {
+    decode(pool_namespace, it);
+  }
   DECODE_FINISH(it);
 }
 
 void ChildImageSpec::dump(Formatter *f) const {
   f->dump_int("pool_id", pool_id);
+  f->dump_string("pool_namespace", pool_namespace);
   f->dump_string("image_id", image_id);
 }
 
 void ChildImageSpec::generate_test_instances(std::list<ChildImageSpec*> &o) {
   o.push_back(new ChildImageSpec());
-  o.push_back(new ChildImageSpec(123, "abc"));
+  o.push_back(new ChildImageSpec(123, "", "abc"));
+  o.push_back(new ChildImageSpec(123, "ns", "abc"));
 }
 
 void GroupImageSpec::encode(bufferlist &bl) const {
