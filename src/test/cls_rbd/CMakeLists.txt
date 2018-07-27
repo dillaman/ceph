@@ -5,7 +5,6 @@ add_executable(ceph_test_cls_rbd
 set_target_properties(ceph_test_cls_rbd PROPERTIES COMPILE_FLAGS
   ${UNITTEST_CXX_FLAGS})
 target_link_libraries(ceph_test_cls_rbd
-  librbd
   cls_rbd_client
   cls_lock_client
   librados
