@@ -26,19 +26,18 @@ public:
                                        const std::string &snap_name,
                                        const cls::rbd::SnapshotNamespace &snap_namespace,
                                        uint64_t size,
-                                       const librbd::ParentSpec &parent_spec,
-                                       uint64_t parent_overlap,
+                                       const ParentImageInfo &parent_image_info,
                                        Context *on_finish) {
-    return new SnapshotCreateRequest(dst_image_ctx, snap_name, snap_namespace, size,
-                                     parent_spec, parent_overlap, on_finish);
+    return new SnapshotCreateRequest(dst_image_ctx, snap_name, snap_namespace,
+                                     size, parent_image_info, on_finish);
   }
 
   SnapshotCreateRequest(ImageCtxT *dst_image_ctx,
                         const std::string &snap_name,
 			const cls::rbd::SnapshotNamespace &snap_namespace,
 			uint64_t size,
-                        const librbd::ParentSpec &parent_spec,
-                        uint64_t parent_overlap, Context *on_finish);
+                        const ParentImageInfo &parent_image_info,
+                        Context *on_finish);
 
   void send();
 
@@ -67,8 +66,7 @@ private:
   std::string m_snap_name;
   cls::rbd::SnapshotNamespace m_snap_namespace;
   uint64_t m_size;
-  librbd::ParentSpec m_parent_spec;
-  uint64_t m_parent_overlap;
+  ParentImageInfo m_parent_image_info;
   Context *m_on_finish;
 
   CephContext *m_cct;

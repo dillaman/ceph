@@ -104,7 +104,8 @@ namespace librbd {
                    // lockers
     RWLock snap_lock; // protects snapshot-related member variables,
                       // features (and associated helper classes), and flags
-    RWLock parent_lock; // protects parent_md and parent
+    RWLock parent_lock; // protects parent_image_spec, head_parent_overlap,
+                        // and parent
     RWLock object_map_lock; // protects object map updates and object_map itself
     Mutex async_ops_lock; // protects async_ops and async_requests
     Mutex copyup_list_lock; // protects copyup_waiting_list
@@ -120,7 +121,14 @@ namespace librbd {
     char *format_string;
     std::string header_oid;
     std::string id; // only used for new-format images
-    ParentInfo parent_md;
+
+    // parent spec will be populated if HEAD (or oldest snapshot) tied to
+    // to parent image
+    cls::rbd::ParentImageSpec parent_image_spec;
+
+    // HEAD revision overlap with parent (zero if none)
+    uint64_t head_parent_overlap;
+
     ImageCtx *parent;
     ImageCtx *child = nullptr;
     MigrationInfo migration_info;
@@ -260,8 +268,6 @@ namespace librbd {
 		      std::string *out_snap_name) const;
     int get_snap_namespace(librados::snap_t in_snap_id,
 			   cls::rbd::SnapshotNamespace *out_snap_namespace) const;
-    int get_parent_spec(librados::snap_t in_snap_id,
-			ParentSpec *pspec) const;
     int is_snap_protected(librados::snap_t in_snap_id,
 			  bool *is_protected) const;
     int is_snap_unprotected(librados::snap_t in_snap_id,
@@ -278,7 +284,7 @@ namespace librbd {
     void add_snap(cls::rbd::SnapshotNamespace in_snap_namespace,
 		  std::string in_snap_name,
 		  librados::snap_t id,
-		  uint64_t in_size, const ParentInfo &parent,
+		  uint64_t in_size, uint64_t parent_overlap,
 		  uint8_t protection_status, uint64_t flags, utime_t timestamp);
     void rm_snap(cls::rbd::SnapshotNamespace in_snap_namespace,
 		 std::string in_snap_name,
@@ -297,12 +303,12 @@ namespace librbd {
                    bool *flags_set) const;
     int update_flags(librados::snap_t in_snap_id, uint64_t flag, bool enabled);
 
-    const ParentInfo* get_parent_info(librados::snap_t in_snap_id) const;
-    int64_t get_parent_pool_id(librados::snap_t in_snap_id) const;
-    std::string get_parent_image_id(librados::snap_t in_snap_id) const;
-    uint64_t get_parent_snap_id(librados::snap_t in_snap_id) const;
+    void get_parent_image_spec(cls::rbd::ParentImageSpec *pspec) const;
+    int get_parent_image_info(librados::snap_t in_snap_id,
+			      ParentImageInfo* info) const;
     int get_parent_overlap(librados::snap_t in_snap_id,
-			   uint64_t *overlap) const;
+                           uint64_t *overlap) const;
+
     void register_watch(Context *on_finish);
     uint64_t prune_parent_extents(vector<pair<uint64_t,uint64_t> >& objectx,
 				  uint64_t overlap);

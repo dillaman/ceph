@@ -162,21 +162,16 @@ void SnapshotRemoveRequest<I>::detach_child() {
     RWLock::RLocker snap_locker(image_ctx.snap_lock);
     RWLock::RLocker parent_locker(image_ctx.parent_lock);
 
-    ParentSpec our_pspec;
+    cls::rbd:::ParentImageSpec our_pspec;
     int r = image_ctx.get_parent_spec(m_snap_id, &our_pspec);
     if (r < 0) {
-      if (r == -ENOENT) {
-        ldout(cct, 1) << "No such snapshot" << dendl;
-      } else {
-        lderr(cct) << "failed to retrieve parent spec" << dendl;
-      }
-
+      lderr(cct) << "failed to retrieve parent spec" << dendl;
       this->async_complete(r);
       return;
     }
 
     if (image_ctx.parent_md.spec != our_pspec &&
-        (scan_for_parents(our_pspec) == -ENOENT)) {
+        (scan_for_parents() == -ENOENT)) {
       // no other references to the parent image
       detach_child = true;
     }
@@ -339,28 +334,23 @@ void SnapshotRemoveRequest<I>::remove_snap_context() {
 }
 
 template <typename I>
-int SnapshotRemoveRequest<I>::scan_for_parents(ParentSpec &pspec) {
+int SnapshotRemoveRequest<I>::scan_for_parents() {
   I &image_ctx = this->m_image_ctx;
   assert(image_ctx.snap_lock.is_locked());
   assert(image_ctx.parent_lock.is_locked());
 
-  if (pspec.pool_id != -1) {
-    map<uint64_t, SnapInfo>::iterator it;
-    for (it = image_ctx.snap_info.begin();
-         it != image_ctx.snap_info.end(); ++it) {
-      // skip our snap id (if checking base image, CEPH_NOSNAP won't match)
-      if (it->first == m_snap_id) {
-        continue;
-      }
-      if (it->second.parent.spec == pspec) {
-        break;
-      }
+  map<uint64_t, SnapInfo>::iterator it;
+  for (it = image_ctx.snap_info.begin();
+       it != image_ctx.snap_info.end(); ++it) {
+    // skip our snap id (if checking base image, CEPH_NOSNAP won't match)
+    if (it->first == m_snap_id) {
+      continue;
     }
-    if (it == image_ctx.snap_info.end()) {
-      return -ENOENT;
+    if (it->second.parent_overlap > 0) {
+      return 0;
     }
   }
-  return 0;
+  return -ENOENT;
 }
 
 } // namespace operation

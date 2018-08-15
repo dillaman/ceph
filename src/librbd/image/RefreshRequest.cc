@@ -444,8 +444,8 @@ Context *RefreshRequest<I>::handle_v2_get_parent(int *result) {
 
   if (*result == 0) {
     auto it = m_out_bl.cbegin();
-    *result = cls_client::get_parent_finish(&it, &m_parent_md.spec,
-                                            &m_parent_md.overlap);
+    *result = cls_client::get_parent_finish(&it, &m_parent_image_spec,
+                                            &m_head_parent_overlap);
   }
 
   if (*result < 0) {
@@ -601,7 +601,7 @@ template <typename I>
 void RefreshRequest<I>::send_v2_get_snapshots() {
   m_snap_infos.resize(m_snapc.snaps.size());
   m_snap_flags.resize(m_snapc.snaps.size());
-  m_snap_parents.resize(m_snapc.snaps.size());
+  m_snap_parent_overlap.resize(m_snapc.snaps.size());
   m_snap_protection.resize(m_snapc.snaps.size());
 
   if (m_snapc.snaps.empty()) {
@@ -677,8 +677,17 @@ Context *RefreshRequest<I>::handle_v2_get_snapshots(int *result) {
     }
 
     if (*result >= 0) {
-      *result = cls_client::get_parent_finish(&it, &m_snap_parents[i].spec,
-                                              &m_snap_parents[i].overlap);
+      cls::rbd::ParentImageSpec parent_image_spec;
+      *result = cls_client::get_parent_finish(&it, &parent_image_spec,
+                                              &m_snap_parent_overlaps[i]);
+
+      if (m_parent_image_spec.exists() &&
+          (!parent_image_spec.exists() ||
+           m_parent_image_spec != parent_image_spec)) {
+        // parent linkage corrupt -- cannot switch to a different parent
+        *result = -EINVAL;
+      }
+      m_parent_image_spec = parent_image_spec;
     }
 
     if (*result >= 0) {
@@ -716,11 +725,13 @@ void RefreshRequest<I>::send_v2_refresh_parent() {
     RWLock::RLocker snap_locker(m_image_ctx.snap_lock);
     RWLock::RLocker parent_locker(m_image_ctx.parent_lock);
 
-    ParentInfo parent_md;
+    ParentImageInfo parent_image_info;
     MigrationInfo migration_info;
-    int r = get_parent_info(m_image_ctx.snap_id, &parent_md, &migration_info);
+    int r = get_parent_info(m_image_ctx.snap_id, &parent_image_info,
+                            &migration_info);
     if (r < 0 ||
-        RefreshParentRequest<I>::is_refresh_required(m_image_ctx, parent_md)) {
+        RefreshParentRequest<I>::is_refresh_required(m_image_ctx,
+                                                     parent_image_info)) {
       CephContext *cct = m_image_ctx.cct;
       ldout(cct, 10) << this << " " << __func__ << dendl;
 
@@ -728,7 +739,7 @@ void RefreshRequest<I>::send_v2_refresh_parent() {
       Context *ctx = create_context_callback<
         klass, &klass::handle_v2_refresh_parent>(this);
       m_refresh_parent = RefreshParentRequest<I>::create(
-        m_image_ctx, parent_md, migration_info, ctx);
+        m_image_ctx, parent_image_info, migration_info, ctx);
     }
   }
 
@@ -1213,7 +1224,8 @@ void RefreshRequest<I>::apply() {
           migration_reverse_snap_seq[it.second.front()] = it.first;
         }
       } else {
-        m_image_ctx.parent_md = m_parent_md;
+        m_image_ctx.parent_image_spec = m_parent_image_spec;
+        m_image_ctx.head_parent_overlap = m_head_parent_overlap;
         m_image_ctx.migration_info = {};
       }
     }
@@ -1234,35 +1246,39 @@ void RefreshRequest<I>::apply() {
     m_image_ctx.snaps.clear();
     m_image_ctx.snap_info.clear();
     m_image_ctx.snap_ids.clear();
-    auto overlap = m_image_ctx.parent_md.overlap;
+
+    auto overlap = m_image_ctx.head_parent_overlap;
     for (size_t i = 0; i < m_snapc.snaps.size(); ++i) {
       uint64_t flags = m_image_ctx.old_format ? 0 : m_snap_flags[i];
       uint8_t protection_status = m_image_ctx.old_format ?
         static_cast<uint8_t>(RBD_PROTECTION_STATUS_UNPROTECTED) :
         m_snap_protection[i];
-      ParentInfo parent;
+      uint64_t parent_overlap = 0;
       if (!m_image_ctx.old_format) {
         if (!m_image_ctx.migration_info.empty()) {
+          // override snap overlaps in-memory to match the migration source
+          // snapshot image size
+
           parent = m_image_ctx.parent_md;
           auto it = migration_reverse_snap_seq.find(m_snapc.snaps[i].val);
           if (it != migration_reverse_snap_seq.end()) {
+            // 
             parent.spec.snap_id = it->second;
             parent.overlap = m_snap_infos[i].image_size;
           } else {
             overlap = std::min(overlap, m_snap_infos[i].image_size);
-            parent.overlap = overlap;
           }
         } else {
-          parent = m_snap_parents[i];
+          parent_overlap = m_snap_parent_overlap[i];
         }
       }
       m_image_ctx.add_snap(m_snap_infos[i].snapshot_namespace,
                            m_snap_infos[i].name, m_snapc.snaps[i].val,
-                           m_snap_infos[i].image_size, parent,
+                           m_snap_infos[i].image_size, parent_overlap,
 			   protection_status, flags,
                            m_snap_infos[i].timestamp);
     }
-    m_image_ctx.parent_md.overlap = std::min(overlap, m_image_ctx.size);
+    m_image_ctx.head_parent_overlap = std::min(overlap, m_image_ctx.size);
     m_image_ctx.snapc = m_snapc;
 
     if (m_image_ctx.snap_id != CEPH_NOSNAP &&
@@ -1313,12 +1329,12 @@ void RefreshRequest<I>::apply() {
 
 template <typename I>
 int RefreshRequest<I>::get_parent_info(uint64_t snap_id,
-                                       ParentInfo *parent_md,
+                                       ParentImageInfo *parent_image_info,
                                        MigrationInfo *migration_info) {
-  if (get_migration_info(parent_md, migration_info)) {
+  if (get_migration_info(parent_image_info, migration_info)) {
     return 0;
   } else if (snap_id == CEPH_NOSNAP) {
-    *parent_md = m_parent_md;
+    *parent_image_info = {m_parent_image_spec, m_head_parent_overlap};
     *migration_info = {};
 
     if (!m_snap_parents.empty()) {
@@ -1330,7 +1346,7 @@ int RefreshRequest<I>::get_parent_info(uint64_t snap_id,
   } else {
     for (size_t i = 0; i < m_snapc.snaps.size(); ++i) {
       if (m_snapc.snaps[i].val == snap_id) {
-        *parent_md = m_snap_parents[i];
+        *parent_image_info = m_snap_parents[i];
         *migration_info = {};
         return 0;
       }
@@ -1340,7 +1356,7 @@ int RefreshRequest<I>::get_parent_info(uint64_t snap_id,
 }
 
 template <typename I>
-bool RefreshRequest<I>::get_migration_info(ParentInfo *parent_md,
+bool RefreshRequest<I>::get_migration_info(ParentInfo *parent_image_info,
                                            MigrationInfo *migration_info) {
   if (m_migration_spec.header_type != cls::rbd::MIGRATION_HEADER_TYPE_DST ||
       (m_migration_spec.state != cls::rbd::MIGRATION_STATE_PREPARED &&
@@ -1352,10 +1368,12 @@ bool RefreshRequest<I>::get_migration_info(ParentInfo *parent_md,
     return false;
   }
 
-  parent_md->spec.pool_id = m_migration_spec.pool_id;
-  parent_md->spec.image_id = m_migration_spec.image_id;
-  parent_md->spec.snap_id = CEPH_NOSNAP;
-  parent_md->overlap = std::min(m_size, m_migration_spec.overlap);
+  // TODO: add support for migration namespaces
+  *parent_image_info = {
+    {m_migration_spec.pool_id, m_image_ctx.md_ctx.get_namespace(),
+     m_migration_spec.image_id, CEPH_NOSNAP},
+    std::min(m_size, m_migration_spec.overlap)};
+  uint64_t overlap = parent_image_info->overlap;
 
   auto snap_seqs = m_migration_spec.snap_seqs;
   // If new snapshots have been created on destination image after
@@ -1366,6 +1384,7 @@ bool RefreshRequest<I>::get_migration_info(ParentInfo *parent_md,
                              snap_id);
   if (it != m_snapc.snaps.rend()) {
     snap_seqs[CEPH_NOSNAP] = *it;
+    overlap = 0
   } else {
     snap_seqs[CEPH_NOSNAP] = CEPH_NOSNAP;
   }
@@ -1374,10 +1393,10 @@ bool RefreshRequest<I>::get_migration_info(ParentInfo *parent_md,
   for (auto& it : snap_seqs) {
     snap_ids.insert(it.second);
   }
-  uint64_t overlap = snap_ids.find(CEPH_NOSNAP) != snap_ids.end() ?
-    parent_md->overlap : 0;
+
   for (size_t i = 0; i < m_snapc.snaps.size(); ++i) {
     if (snap_ids.find(m_snapc.snaps[i].val) != snap_ids.end()) {
+      // overlap w/ migration source is based on largest deep-copied snapshot
       overlap = std::max(overlap, m_snap_infos[i].image_size);
     }
   }

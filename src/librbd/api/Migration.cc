@@ -1131,18 +1131,12 @@ int Migration<I>::create_dst_image() {
   ldout(m_cct, 10) << dendl;
 
   uint64_t size;
-  ParentSpec parent_spec;
+  cls::rbd::ParentImageSpec parent_spec;
   {
     RWLock::RLocker snap_locker(m_src_image_ctx->snap_lock);
     RWLock::RLocker parent_locker(m_src_image_ctx->parent_lock);
     size = m_src_image_ctx->size;
-
-    // use oldest snapshot or HEAD for parent spec
-    if (!m_src_image_ctx->snap_info.empty()) {
-      parent_spec = m_src_image_ctx->snap_info.begin()->second.parent.spec;
-    } else {
-      parent_spec = m_src_image_ctx->parent_md.spec;
-    }
+    parent_spec = m_src_image_ctx->parent_image_spec;
   }
 
   ThreadPool *thread_pool;
@@ -1153,7 +1147,7 @@ int Migration<I>::create_dst_image() {
   C_SaferCond on_create;
   librados::Rados rados(m_src_image_ctx->md_ctx);
   librados::IoCtx parent_io_ctx;
-  if (parent_spec.pool_id == -1) {
+  if (!parent_spec.exists()) {
     auto *req = image::CreateRequest<I>::create(
       m_dst_io_ctx, m_dst_image_name, m_dst_image_id, size, m_image_options,
       "", "", true /* skip_mirror_enable */, op_work_queue, &on_create);

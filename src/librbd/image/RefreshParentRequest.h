@@ -19,7 +19,7 @@ template <typename ImageCtxT = ImageCtx>
 class RefreshParentRequest {
 public:
   static RefreshParentRequest *create(ImageCtxT &child_image_ctx,
-                                      const ParentInfo &parent_md,
+                                      const ParentImageInfo &parent_md,
                                       const MigrationInfo &migration_info,
                                       Context *on_finish) {
     return new RefreshParentRequest(child_image_ctx, parent_md, migration_info,
@@ -57,11 +57,12 @@ private:
    * @endverbatim
    */
 
-  RefreshParentRequest(ImageCtxT &child_image_ctx, const ParentInfo &parent_md,
+  RefreshParentRequest(ImageCtxT &child_image_ctx,
+                       const ParentImageInfo &parent_md,
                        const MigrationInfo &migration_info, Context *on_finish);
 
   ImageCtxT &m_child_image_ctx;
-  ParentInfo m_parent_md;
+  ParentImageInfo m_parent_md;
   MigrationInfo m_migration_info;
   Context *m_on_finish;
 
@@ -71,11 +72,22 @@ private:
   int m_error_result;
 
   static bool is_close_required(ImageCtxT &child_image_ctx,
+<<<<<<< HEAD
                                 const ParentInfo &parent_md);
   static bool is_open_required(ImageCtxT &child_image_ctx,
                                const ParentInfo &parent_md);
   static bool does_parent_exist(ImageCtxT &child_image_ctx,
                                 const ParentInfo &parent_md);
+=======
+                                const ParentImageInfo &parent_md,
+                                const MigrationInfo &migration_info);
+  static bool is_open_required(ImageCtxT &child_image_ctx,
+                               const ParentImageInfo &parent_md,
+                               const MigrationInfo &migration_info);
+  static bool does_parent_exist(ImageCtxT &child_image_ctx,
+                                const ParentImageInfo &parent_md,
+                                const MigrationInfo &migration_info);
+>>>>>>> 85ac04ff37... [WIP] librbd: replace librbd::ParentSpec/Info with cls::rbd::ParentImageSpec
 
   void send_open_parent();
   Context *handle_open_parent(int *result);

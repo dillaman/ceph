@@ -33,16 +33,10 @@ void DetachChildRequest<I>::send() {
   {
     RWLock::RLocker snap_locker(m_image_ctx.snap_lock);
     RWLock::RLocker parent_locker(m_image_ctx.parent_lock);
-
-    // use oldest snapshot or HEAD for parent spec
-    if (!m_image_ctx.snap_info.empty()) {
-      m_parent_spec = m_image_ctx.snap_info.begin()->second.parent.spec;
-    } else {
-      m_parent_spec = m_image_ctx.parent_md.spec;
-    }
+    m_parent_spec = m_image_ctx.parent_image_spec;
   }
 
-  if (m_parent_spec.pool_id == -1) {
+  if (!m_parent_spec.exists()) {
     // ignore potential race with parent disappearing
     m_image_ctx.op_work_queue->queue(create_context_callback<
       DetachChildRequest<I>,
@@ -70,9 +64,7 @@ void DetachChildRequest<I>::clone_v2_child_detach() {
   librados::Rados rados(m_image_ctx.md_ctx);
   int r = rados.ioctx_create2(m_parent_spec.pool_id, m_parent_io_ctx);
   assert(r == 0);
-
-  // TODO support clone v2 parent namespaces
-  m_parent_io_ctx.set_namespace(m_image_ctx.md_ctx.get_namespace());
+  m_parent_io_ctx.set_namespace(m_parent_spec.pool_namespace);
 
   m_parent_header_name = util::header_name(m_parent_spec.image_id);
 

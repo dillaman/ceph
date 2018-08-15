@@ -574,7 +574,8 @@ bool compare_by_name(const child_info_t& c1, const child_info_t& c2)
 
     RWLock::RLocker l(ictx->snap_lock);
     snap_t snap_id = ictx->get_snap_id(cls::rbd::UserSnapshotNamespace(), snap_name);
-    ParentSpec parent_spec(ictx->md_ctx.get_id(), ictx->id, snap_id);
+    cls::rbd::ParentImageSpec parent_spec(
+      ictx->md_ctx.get_id(), ictx->md_ctx.get_namespace(), ictx->id, snap_id);
     map< pair<int64_t, string>, set<string> > image_info;
 
     r = api::Image<>::list_children(ictx, parent_spec, &image_info);
@@ -652,7 +653,9 @@ bool compare_by_name(const child_info_t& c1, const child_info_t& c2)
     }
 
     RWLock::RLocker l(ictx->snap_lock);
-    ParentSpec parent_spec(ictx->md_ctx.get_id(), ictx->id, ictx->snap_id);
+    cls::rbd::ParentImageSpec parent_spec(
+      ictx->md_ctx.get_id(), ictx->md_ctx.get_namespace(), ictx->id,
+      ictx->snap_id);
     map< pair<int64_t, string>, set<string> > image_info;
 
     r = api::Image<>::list_children(ictx, parent_spec, &image_info);
@@ -1082,6 +1085,7 @@ bool compare_by_name(const child_info_t& c1, const child_info_t& c2)
       return r;
     RWLock::RLocker l(ictx->snap_lock);
     RWLock::RLocker l2(ictx->parent_lock);
+
     return ictx->get_parent_overlap(ictx->snap_id, overlap);
   }
 
@@ -1099,23 +1103,17 @@ bool compare_by_name(const child_info_t& c1, const child_info_t& c2)
       return -ENOENT;
     }
 
-    ParentSpec parent_spec;
-
-    if (ictx->snap_id == CEPH_NOSNAP) {
-      parent_spec = ictx->parent_md.spec;
-    } else {
-      r = ictx->get_parent_spec(ictx->snap_id, &parent_spec);
-      if (r < 0) {
-	lderr(ictx->cct) << "Can't find snapshot id = " << ictx->snap_id
-                         << dendl;
-	return r;
-      }
-      if (parent_spec.pool_id == -1)
-	return -ENOENT;
+    ParentImageInfo parent_image_info;
+    r = ictx->get_parent_image_info(ictx->snap_id, &parent_image_info);
+    if (r < 0) {
+      return r;
+    } else if (!parent_image_info.exists()) {
+      return -ENOENT;
     }
+
     if (parent_pool_name) {
       Rados rados(ictx->md_ctx);
-      r = rados.pool_reverse_lookup(parent_spec.pool_id,
+      r = rados.pool_reverse_lookup(parent_image_info.spec.pool_id,
 				    parent_pool_name);
       if (r < 0) {
 	lderr(ictx->cct) << "error looking up pool name: " << cpp_strerror(r)
@@ -1124,9 +1122,11 @@ bool compare_by_name(const child_info_t& c1, const child_info_t& c2)
       }
     }
 
-    if (parent_snap_name && parent_spec.snap_id != CEPH_NOSNAP) {
+    // TODO add support for parent namespace
+
+    if (parent_snap_name && parent_image_info.spec.snap_id != CEPH_NOSNAP) {
       RWLock::RLocker l(ictx->parent->snap_lock);
-      r = ictx->parent->get_snap_name(parent_spec.snap_id,
+      r = ictx->parent->get_snap_name(parent_image_info.spec.snap_id,
 				      parent_snap_name);
       if (r < 0) {
 	lderr(ictx->cct) << "error finding parent snap name: "

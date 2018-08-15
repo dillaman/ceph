@@ -346,7 +346,7 @@ int Operations<I>::flatten(ProgressContext &prog_ctx) {
 
   {
     RWLock::RLocker parent_locker(m_image_ctx.parent_lock);
-    if (m_image_ctx.parent_md.spec.pool_id == -1) {
+    if (m_image_ctx.head_parent_overlap == 0) {
       lderr(cct) << "image has no parent" << dendl;
       return -EINVAL;
     }
@@ -386,7 +386,7 @@ void Operations<I>::execute_flatten(ProgressContext &prog_ctx,
   m_image_ctx.parent_lock.get_read();
 
   // can't flatten a non-clone
-  if (m_image_ctx.parent_md.spec.pool_id == -1) {
+  if (m_image_ctx.head_parent_overlap == 0) {
     lderr(cct) << "image has no parent" << dendl;
     m_image_ctx.parent_lock.put_read();
     m_image_ctx.snap_lock.put_read();

@@ -147,7 +147,9 @@ void CloneRequest<I>::handle_open_parent(int r) {
   }
 
   m_parent_snap_id = m_parent_image_ctx->snap_id;
-  m_pspec = {m_parent_io_ctx.get_id(), m_parent_image_id, m_parent_snap_id};
+  m_pspec = {m_parent_io_ctx.get_id(),
+             m_parent_io_ctx.get_namespace(),
+             m_parent_image_id, m_parent_snap_id};
   validate_parent();
 }
 
@@ -416,6 +418,13 @@ void CloneRequest<I>::handle_v2_child_attach(int r) {
 
 template <typename I>
 void CloneRequest<I>::v1_add_child() {
+  if (!m_pspec.pool_namespace.empty()) {
+    lderr(m_cct) << "clone v1 does not support namespaces" << dendl;
+    m_r_saved = -EXDEV;
+    close_child();
+    return;
+  }
+
   ldout(m_cct, 20) << dendl;
 
   librados::ObjectWriteOperation op;

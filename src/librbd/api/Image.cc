@@ -71,7 +71,8 @@ int Image<I>::list_images(librados::IoCtx& io_ctx, ImageNameToIds *images) {
 }
 
 template <typename I>
-int Image<I>::list_children(I *ictx, const ParentSpec &parent_spec,
+int Image<I>::list_children(I *ictx,
+                            const cls::rbd::ParentImageSpec &parent_spec,
                             PoolImageIds *pool_image_ids)
 {
   CephContext *cct = ictx->cct;
@@ -135,10 +136,12 @@ int Image<I>::list_children(I *ictx, const ParentSpec &parent_spec,
   // retrieve clone v2 children attached to this snapshot
   IoCtx parent_io_ctx;
   r = rados.ioctx_create2(parent_spec.pool_id, parent_io_ctx);
-  assert(r == 0);
-
-  // TODO support clone v2 parent namespaces
-  parent_io_ctx.set_namespace(ictx->md_ctx.get_namespace());
+  if (r < 0) {
+    lderr(cct) << "error accessing parent image pool " << parent_spec.pool_id
+               << dendl;
+    return r;
+  }
+  parent_io_ctx.set_namespace(parent_spec.pool_namespace);
 
   cls::rbd::ChildImageSpecs child_images;
   r = cls_client::children_list(&parent_io_ctx,
@@ -217,23 +220,17 @@ int Image<I>::deep_copy(I *src, librados::IoCtx& dest_md_ctx,
     opts.unset(RBD_IMAGE_OPTION_FLATTEN);
   }
 
-  ParentSpec parent_spec;
+  cls::rbd::ParentImageSpec parent_spec;
   if (flatten > 0) {
     parent_spec.pool_id = -1;
   } else {
     RWLock::RLocker snap_locker(src->snap_lock);
     RWLock::RLocker parent_locker(src->parent_lock);
-
-    // use oldest snapshot or HEAD for parent spec
-    if (!src->snap_info.empty()) {
-      parent_spec = src->snap_info.begin()->second.parent.spec;
-    } else {
-      parent_spec = src->parent_md.spec;
-    }
+    parent_spec = src->parent_image_spec;
   }
 
   int r;
-  if (parent_spec.pool_id == -1) {
+  if (!parent_spec.exists()) {
     r = create(dest_md_ctx, destname, "", src_size, opts, "", "", false);
   } else {
     librados::Rados rados(src->md_ctx);

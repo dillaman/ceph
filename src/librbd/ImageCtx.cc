@@ -387,17 +387,6 @@ public:
     return -ENOENT;
   }
 
-  int ImageCtx::get_parent_spec(snap_t in_snap_id,
-				ParentSpec *out_pspec) const
-  {
-    const SnapInfo *info = get_snap_info(in_snap_id);
-    if (info) {
-      *out_pspec = info->parent.spec;
-      return 0;
-    }
-    return -ENOENT;
-  }
-
   uint64_t ImageCtx::get_current_size() const
   {
     assert(snap_lock.is_locked());
@@ -464,13 +453,13 @@ public:
   void ImageCtx::add_snap(cls::rbd::SnapshotNamespace in_snap_namespace,
 			  string in_snap_name,
 			  snap_t id, uint64_t in_size,
-			  const ParentInfo &parent, uint8_t protection_status,
+                          uint64_t parent_overlap, uint8_t protection_status,
                           uint64_t flags, utime_t timestamp)
   {
     assert(snap_lock.is_wlocked());
     snaps.push_back(id);
     SnapInfo info(in_snap_name, in_snap_namespace,
-		  in_size, parent, protection_status, flags, timestamp);
+		  in_size, parent_overlap, protection_status, flags, timestamp);
     snap_info.insert({id, info});
     snap_ids.insert({{in_snap_namespace, in_snap_name}, id});
   }
@@ -591,51 +580,69 @@ public:
     return 0;
   }
 
-  const ParentInfo* ImageCtx::get_parent_info(snap_t in_snap_id) const
+  void ImageCtx::get_parent_image_spec(
+      cls::rbd::ParentImageSpec *out_pspec) const
   {
     assert(snap_lock.is_locked());
     assert(parent_lock.is_locked());
-    if (in_snap_id == CEPH_NOSNAP)
-      return &parent_md;
-    const SnapInfo *info = get_snap_info(in_snap_id);
-    if (info)
-      return &info->parent;
-    return NULL;
+
+    uint64_t parent_overlap;
+    if (!snap_info.empty()) {
+      parent_overlap = snap_info.begin()->second.parent_overlap;
+    } else {
+      parent_overlap = head_parent_overlap;
+    }
+
+    if (parent_overlap == 0) {
+      *out_pspec = {};
+    } else {
+      *out_pspec = parent_image_spec;
+    }
   }
 
-  int64_t ImageCtx::get_parent_pool_id(snap_t in_snap_id) const
-  {
-    const ParentInfo *info = get_parent_info(in_snap_id);
-    if (info)
-      return info->spec.pool_id;
-    return -1;
-  }
-
-  string ImageCtx::get_parent_image_id(snap_t in_snap_id) const
-  {
-    const ParentInfo *info = get_parent_info(in_snap_id);
-    if (info)
-      return info->spec.image_id;
-    return "";
-  }
-
-  uint64_t ImageCtx::get_parent_snap_id(snap_t in_snap_id) const
-  {
-    const ParentInfo *info = get_parent_info(in_snap_id);
-    if (info)
-      return info->spec.snap_id;
-    return CEPH_NOSNAP;
-  }
-
-  int ImageCtx::get_parent_overlap(snap_t in_snap_id, uint64_t *overlap) const
+  int ImageCtx::get_parent_image_info(snap_t in_snap_id,
+                                      ParentImageInfo *info) const
   {
     assert(snap_lock.is_locked());
-    const ParentInfo *info = get_parent_info(in_snap_id);
-    if (info) {
-      *overlap = info->overlap;
-      return 0;
+    assert(parent_lock.is_locked());
+
+    if (in_snap_id == CEPH_NOSNAP) {
+      if (head_parent_overlap > 0) {
+        *info = {parent_image_spec, head_parent_overlap};
+        return 0;
+      }
+    } else {
+      auto snap_info = get_snap_info(in_snap_id);
+      if (snap_info == nullptr) {
+        return -ENOENT;
+      }
+
+      if (snap_info->parent_overlap > 0) {
+        *info = {parent_image_spec, snap_info->parent_overlap};
+        return 0;
+      }
     }
-    return -ENOENT;
+
+    *info = {};
+    return 0;
+  }
+
+  int ImageCtx::get_parent_overlap(librados::snap_t in_snap_id,
+                                   uint64_t *overlap) const {
+    assert(snap_lock.is_locked());
+    assert(parent_lock.is_locked());
+
+    if (in_snap_id == CEPH_NOSNAP) {
+      *overlap = head_parent_overlap;
+    } else {
+      auto snap_info = get_snap_info(in_snap_id);
+      if (snap_info == nullptr) {
+        return -ENOENT;
+      }
+
+      *overlap = snap_info->parent_overlap;
+    }
+    return 0;
   }
 
   void ImageCtx::register_watch(Context *on_finish) {

@@ -9,7 +9,6 @@
 #include "common/bit_vector.hpp"
 #include "common/snap_types.h"
 #include "include/types.h"
-#include "librbd/Types.h"
 
 class Context;
 namespace librados {
@@ -62,16 +61,18 @@ int set_size(librados::IoCtx *ioctx, const std::string &oid,
 void set_size(librados::ObjectWriteOperation *op, uint64_t size);
 
 void get_parent_start(librados::ObjectReadOperation *op, snapid_t snap_id);
-int get_parent_finish(bufferlist::const_iterator *it, ParentSpec *pspec,
+int get_parent_finish(bufferlist::const_iterator *it,
+                      cls::rbd::ParentImageSpec *pspec,
                       uint64_t *parent_overlap);
 int get_parent(librados::IoCtx *ioctx, const std::string &oid,
-               snapid_t snap_id, ParentSpec *pspec,
+               snapid_t snap_id, cls::rbd::ParentImageSpec *pspec,
                uint64_t *parent_overlap);
 
 int set_parent(librados::IoCtx *ioctx, const std::string &oid,
-               const ParentSpec &pspec, uint64_t parent_overlap);
+               const cls::rbd::ParentImageSpec &pspec, uint64_t parent_overlap);
 void set_parent(librados::ObjectWriteOperation *op,
-                const ParentSpec &pspec, uint64_t parent_overlap);
+                const cls::rbd::ParentImageSpec &pspec,
+                uint64_t parent_overlap);
 
 void get_flags_start(librados::ObjectReadOperation *op, snapid_t snap_id);
 int get_flags_finish(bufferlist::const_iterator *it, uint64_t *flags);
@@ -92,19 +93,23 @@ int op_features_set(librados::IoCtx *ioctx, const std::string &oid,
 int remove_parent(librados::IoCtx *ioctx, const std::string &oid);
 void remove_parent(librados::ObjectWriteOperation *op);
 int add_child(librados::IoCtx *ioctx, const std::string &oid,
-              const ParentSpec &pspec, const std::string &c_imageid);
+              const cls::rbd::ParentImageSpec &pspec,
+              const std::string &c_imageid);
 void add_child(librados::ObjectWriteOperation *op,
-               const ParentSpec pspec, const std::string &c_imageid);
+               const cls::rbd::ParentImageSpec &pspec,
+               const std::string &c_imageid);
 void remove_child(librados::ObjectWriteOperation *op,
-                  const ParentSpec &pspec, const std::string &c_imageid);
+                  const cls::rbd::ParentImageSpec &pspec,
+                  const std::string &c_imageid);
 int remove_child(librados::IoCtx *ioctx, const std::string &oid,
-                 const ParentSpec &pspec, const std::string &c_imageid);
+                 const cls::rbd::ParentImageSpec &pspec,
+                 const std::string &c_imageid);
 void get_children_start(librados::ObjectReadOperation *op,
-                        const ParentSpec &pspec);
+                        const cls::rbd::ParentImageSpec &pspec);
 int get_children_finish(bufferlist::const_iterator *it,
                         std::set<string> *children);
 int get_children(librados::IoCtx *ioctx, const std::string &oid,
-                 const ParentSpec &pspec, set<string>& children);
+                 const cls::rbd::ParentImageSpec &pspec, set<string>& children);
 
 void snapshot_get_start(librados::ObjectReadOperation* op,
                         snapid_t snap_id);

@@ -24,7 +24,7 @@ using util::create_context_callback;
 
 template <typename I>
 RefreshParentRequest<I>::RefreshParentRequest(
-    I &child_image_ctx, const ParentInfo &parent_md,
+    I &child_image_ctx, const ParentImageInfo &parent_md,
     const MigrationInfo &migration_info, Context *on_finish)
   : m_child_image_ctx(child_image_ctx), m_parent_md(parent_md),
     m_migration_info(migration_info), m_on_finish(on_finish),
@@ -103,13 +103,12 @@ void RefreshParentRequest<I>::finalize(Context *on_finish) {
 
 template <typename I>
 void RefreshParentRequest<I>::send_open_parent() {
-  assert(m_parent_md.spec.pool_id >= 0);
+  assert(m_parent_md.exists());
 
   CephContext *cct = m_child_image_ctx.cct;
   ldout(cct, 10) << this << " " << __func__ << dendl;
 
   librados::Rados rados(m_child_image_ctx.md_ctx);
-
   librados::IoCtx parent_io_ctx;
   int r = rados.ioctx_create2(m_parent_md.spec.pool_id, parent_io_ctx);
   if (r < 0) {
@@ -117,9 +116,7 @@ void RefreshParentRequest<I>::send_open_parent() {
     send_complete(r);
     return;
   }
-
-  // TODO support clone v2 parent namespaces
-  parent_io_ctx.set_namespace(m_child_image_ctx.md_ctx.get_namespace());
+  parent_io_ctx.set_namespace(m_parent_md.spec.pool_namespace);
 
   std::string image_name;
   uint64_t flags = 0;

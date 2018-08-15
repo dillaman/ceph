@@ -4,7 +4,7 @@
 #ifndef LIBRBD_API_IMAGE_H
 #define LIBRBD_API_IMAGE_H
 
-#include "librbd/Types.h"
+#include "cls/rbd/cls_rbd_types.h"
 #include <map>
 #include <set>
 #include <string>
@@ -32,7 +32,8 @@ struct Image {
   static int list_images(librados::IoCtx& io_ctx,
                          ImageNameToIds *images);
 
-  static int list_children(ImageCtxT *ictx, const ParentSpec &parent_spec,
+  static int list_children(ImageCtxT *ictx,
+                           const cls::rbd::ParentImageSpec &parent_spec,
                            PoolImageIds *pool_image_ids);
 
   static int deep_copy(ImageCtxT *ictx, librados::IoCtx& dest_md_ctx,

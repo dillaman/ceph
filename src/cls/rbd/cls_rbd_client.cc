@@ -213,7 +213,8 @@ void get_parent_start(librados::ObjectReadOperation *op, snapid_t snap_id)
   op->exec("rbd", "get_parent", bl);
 }
 
-int get_parent_finish(bufferlist::const_iterator *it, ParentSpec *pspec,
+int get_parent_finish(bufferlist::const_iterator *it,
+                      cls::rbd::ParentImageSpec *pspec,
                       uint64_t *parent_overlap)
 {
   try {
@@ -228,7 +229,7 @@ int get_parent_finish(bufferlist::const_iterator *it, ParentSpec *pspec,
 }
 
 int get_parent(librados::IoCtx *ioctx, const std::string &oid,
-               snapid_t snap_id, ParentSpec *pspec,
+               snapid_t snap_id, cls::rbd::ParentImageSpec *pspec,
                uint64_t *parent_overlap)
 {
   librados::ObjectReadOperation op;
@@ -245,7 +246,7 @@ int get_parent(librados::IoCtx *ioctx, const std::string &oid,
 }
 
 int set_parent(librados::IoCtx *ioctx, const std::string &oid,
-               const ParentSpec &pspec, uint64_t parent_overlap)
+               const cls::rbd::ParentImageSpec &pspec, uint64_t parent_overlap)
 {
   librados::ObjectWriteOperation op;
   set_parent(&op, pspec, parent_overlap);
@@ -253,7 +254,8 @@ int set_parent(librados::IoCtx *ioctx, const std::string &oid,
 }
 
 void set_parent(librados::ObjectWriteOperation *op,
-                const ParentSpec &pspec, uint64_t parent_overlap) {
+                const cls::rbd::ParentImageSpec &pspec,
+                uint64_t parent_overlap) {
   bufferlist in_bl;
   encode(pspec.pool_id, in_bl);
   encode(pspec.image_id, in_bl);
@@ -368,7 +370,8 @@ void remove_parent(librados::ObjectWriteOperation *op)
 }
 
 int add_child(librados::IoCtx *ioctx, const std::string &oid,
-              const ParentSpec &pspec, const std::string &c_imageid)
+              const cls::rbd::ParentImageSpec &pspec,
+              const std::string &c_imageid)
 {
   librados::ObjectWriteOperation op;
   add_child(&op, pspec, c_imageid);
@@ -376,7 +379,8 @@ int add_child(librados::IoCtx *ioctx, const std::string &oid,
 }
 
 void add_child(librados::ObjectWriteOperation *op,
-               const ParentSpec pspec, const std::string &c_imageid)
+               const cls::rbd::ParentImageSpec &pspec,
+               const std::string &c_imageid)
 {
   bufferlist in;
   encode(pspec.pool_id, in);
@@ -388,7 +392,8 @@ void add_child(librados::ObjectWriteOperation *op,
 }
 
 void remove_child(librados::ObjectWriteOperation *op,
-                  const ParentSpec &pspec, const std::string &c_imageid)
+                  const cls::rbd::ParentImageSpec &pspec,
+                  const std::string &c_imageid)
 {
   bufferlist in;
   encode(pspec.pool_id, in);
@@ -399,7 +404,8 @@ void remove_child(librados::ObjectWriteOperation *op,
 }
 
 int remove_child(librados::IoCtx *ioctx, const std::string &oid,
-                 const ParentSpec &pspec, const std::string &c_imageid)
+                 const cls::rbd::ParentImageSpec &pspec,
+                 const std::string &c_imageid)
 {
   librados::ObjectWriteOperation op;
   remove_child(&op, pspec, c_imageid);
@@ -407,7 +413,7 @@ int remove_child(librados::IoCtx *ioctx, const std::string &oid,
 }
 
 void get_children_start(librados::ObjectReadOperation *op,
-                        const ParentSpec &pspec) {
+                        const cls::rbd::ParentImageSpec &pspec) {
   bufferlist in_bl;
   encode(pspec.pool_id, in_bl);
   encode(pspec.image_id, in_bl);
@@ -426,7 +432,7 @@ int get_children_finish(bufferlist::const_iterator *it,
 }
 
 int get_children(librados::IoCtx *ioctx, const std::string &oid,
-                 const ParentSpec &pspec, set<string>& children)
+                 const cls::rbd::ParentImageSpec &pspec, set<string>& children)
 {
   librados::ObjectReadOperation op;
   get_children_start(&op, pspec);

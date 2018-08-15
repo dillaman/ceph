@@ -27,12 +27,12 @@ template <typename I>
 SnapshotCreateRequest<I>::SnapshotCreateRequest(
     I *dst_image_ctx, const std::string &snap_name,
     const cls::rbd::SnapshotNamespace &snap_namespace,
-    uint64_t size, const librbd::ParentSpec &spec, uint64_t parent_overlap,
+    uint64_t size, const ParentImageInfo &info,
     Context *on_finish)
   : m_dst_image_ctx(dst_image_ctx), m_snap_name(snap_name),
     m_snap_namespace(snap_namespace), m_size(size),
-    m_parent_spec(spec), m_parent_overlap(parent_overlap),
-    m_on_finish(on_finish), m_cct(dst_image_ctx->cct) {
+    m_parent_image_info(info), m_on_finish(on_finish),
+    m_cct(dst_image_ctx->cct) {
 }
 
 template <typename I>
@@ -46,8 +46,8 @@ void SnapshotCreateRequest<I>::send_set_head() {
 
   auto ctx = create_context_callback<
     SnapshotCreateRequest<I>, &SnapshotCreateRequest<I>::handle_set_head>(this);
-  auto req = SetHeadRequest<I>::create(m_dst_image_ctx, m_size, m_parent_spec,
-                                       m_parent_overlap, ctx);
+  auto req = SetHeadRequest<I>::create(m_dst_image_ctx, m_size,
+                                       m_parent_image_info, ctx);
   req->send();
 }
 

@@ -273,7 +273,9 @@ int Mirror<I>::image_disable(I *ictx, bool force) {
       RWLock::RLocker l(ictx->snap_lock);
       map<librados::snap_t, SnapInfo> snap_info = ictx->snap_info;
       for (auto &info : snap_info) {
-        ParentSpec parent_spec(ictx->md_ctx.get_id(), ictx->id, info.first);
+        cls::rbd::ParentImageSpec parent_spec(
+          ictx->md_ctx.get_id(), ictx->md_ctx.get_namespace(), ictx->id,
+          info.first);
         map< pair<int64_t, string>, set<string> > image_info;
 
         r = Image<I>::list_children(ictx, parent_spec, &image_info);

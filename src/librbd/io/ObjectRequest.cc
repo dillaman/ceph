@@ -150,6 +150,8 @@ bool ObjectRequest<I>::compute_parent_extents(Extents *parent_extents,
   }
 
   if (!read_request && !m_ictx->migration_info.empty()) {
+    // migrations require a copy-up over the max extent of the
+    // source image
     parent_overlap = m_ictx->migration_info.overlap;
   }
 

@@ -142,12 +142,13 @@ private:
   std::map<std::string, bufferlist> m_metadata;
 
   std::string m_object_prefix;
-  ParentInfo m_parent_md;
+  cls::rbd::ParentImageSpec m_parent_image_spec;
+  uint64_t m_head_parent_overlap = 0;
   cls::rbd::GroupSpec m_group_spec;
 
   ::SnapContext m_snapc;
   std::vector<cls::rbd::SnapshotInfo> m_snap_infos;
-  std::vector<ParentInfo> m_snap_parents;
+  std::vector<uint64_t> m_snap_parent_overlap;
   std::vector<uint8_t> m_snap_protection;
   std::vector<uint64_t> m_snap_flags;
 
@@ -237,9 +238,10 @@ private:
   }
 
   void apply();
-  int get_parent_info(uint64_t snap_id, ParentInfo *parent_md,
+  int get_parent_info(uint64_t snap_id, ParentImageInfo *parent_image_info,
                       MigrationInfo *migration_info);
-  bool get_migration_info(ParentInfo *parent_md, MigrationInfo *migration_info);
+  bool get_migration_info(ParentImageInfo *parent_image_info,
+                          MigrationInfo *migration_info);
 };
 
 } // namespace image

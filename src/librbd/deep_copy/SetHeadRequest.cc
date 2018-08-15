@@ -21,13 +21,11 @@ using librbd::util::create_rados_callback;
 
 template <typename I>
 SetHeadRequest<I>::SetHeadRequest(I *image_ctx, uint64_t size,
-                                  const librbd::ParentSpec &spec,
-                                  uint64_t parent_overlap,
+                                  const ParentImageInfo &info,
                                   Context *on_finish)
-  : m_image_ctx(image_ctx), m_size(size), m_parent_spec(spec),
-    m_parent_overlap(parent_overlap), m_on_finish(on_finish),
-    m_cct(image_ctx->cct) {
-  assert(m_parent_overlap <= m_size);
+  : m_image_ctx(image_ctx), m_size(size), m_parent_image_info(info),
+    m_on_finish(on_finish), m_cct(image_ctx->cct) {
+  assert(m_parent_image_info.overlap <= m_size);
 }
 
 template <typename I>
@@ -87,12 +85,12 @@ void SetHeadRequest<I>::handle_set_size(int r) {
     RWLock::WLocker snap_locker(m_image_ctx->snap_lock);
     if (m_image_ctx->size > m_size) {
       RWLock::WLocker parent_locker(m_image_ctx->parent_lock);
-      if (m_image_ctx->parent_md.spec.pool_id != -1 &&
-          m_image_ctx->parent_md.overlap > m_size) {
-        m_image_ctx->parent_md.overlap = m_size;
+      if (m_image_ctx->head_parent_overlap > m_size) {
+        assert(m_image_ctx->parent_image_spec.exists());
+        m_image_ctx->head_parent_overlap = m_size;
       }
+      m_image_ctx->size = m_size;
     }
-    m_image_ctx->size = m_size;
   }
 
   send_remove_parent();
@@ -100,15 +98,18 @@ void SetHeadRequest<I>::handle_set_size(int r) {
 
 template <typename I>
 void SetHeadRequest<I>::send_remove_parent() {
-  m_image_ctx->parent_lock.get_read();
-  if (m_image_ctx->parent_md.spec.pool_id == -1 ||
-      (m_image_ctx->parent_md.spec == m_parent_spec &&
-       m_image_ctx->parent_md.overlap == m_parent_overlap)) {
-    m_image_ctx->parent_lock.put_read();
+  ParentImageInfo parent_image_info;
+  {
+    RWLock::RLocker snap_locker(m_image_ctx->snap_lock);
+    RWLock::RLocker parent_locker(m_image_ctx->parent_lock);
+    int r = m_image_ctx->get_parent_image_info(CEPH_NOSNAP, &parent_image_info);
+    assert(r == 0);
+  }
+
+  if (!parent_image_info.exists() || parent_image_info == m_parent_image_info) {
     send_set_parent();
     return;
   }
-  m_image_ctx->parent_lock.put_read();
 
   ldout(m_cct, 20) << dendl;
 
@@ -144,9 +145,16 @@ void SetHeadRequest<I>::handle_remove_parent(int r) {
 
   {
     // adjust in-memory parent now that it's updated on disk
+    RWLock::RLocker snap_locker(m_image_ctx->snap_lock);
     RWLock::WLocker parent_locker(m_image_ctx->parent_lock);
-    m_image_ctx->parent_md.spec = {};
-    m_image_ctx->parent_md.overlap = 0;
+    m_image_ctx->head_parent_overlap = 0;
+
+    cls::rbd::ParentImageSpec parent_image_spec;
+    m_image_ctx->get_parent_image_spec(&parent_image_spec);
+    if (!parent_image_spec.exists()) {
+      // no snapshot depends on the parent image spec so we can clear it
+      m_image_ctx->parent_image_spec = {};
+    }
   }
 
   send_set_parent();
@@ -154,19 +162,29 @@ void SetHeadRequest<I>::handle_remove_parent(int r) {
 
 template <typename I>
 void SetHeadRequest<I>::send_set_parent() {
-  m_image_ctx->parent_lock.get_read();
-  if (m_image_ctx->parent_md.spec == m_parent_spec &&
-      m_image_ctx->parent_md.overlap == m_parent_overlap) {
-    m_image_ctx->parent_lock.put_read();
+  ParentImageInfo parent_image_info;
+  {
+    RWLock::RLocker parent_locker(m_image_ctx->parent_lock);
+    parent_image_info.spec = m_image_ctx->parent_image_spec;
+    parent_image_info.overlap = m_image_ctx->head_parent_overlap;
+  }
+
+  if (parent_image_info == m_parent_image_info) {
     finish(0);
     return;
+  } else if (parent_image_info.spec.exists() &&
+             parent_image_info.spec != m_parent_image_info.spec) {
+    lderr(m_cct) << "attempting to change parent image spec" << dendl;
+    finish(-EINVAL);
+    return;
   }
-  m_image_ctx->parent_lock.put_read();
+  assert(m_parent_image_info.exists());
 
   ldout(m_cct, 20) << dendl;
 
   librados::ObjectWriteOperation op;
-  librbd::cls_client::set_parent(&op, m_parent_spec, m_parent_overlap);
+  librbd::cls_client::set_parent(&op, m_parent_image_info.spec,
+                                 m_parent_image_info.overlap);
 
   auto finish_op_ctx = start_lock_op();
   if (finish_op_ctx == nullptr) {
@@ -198,8 +216,7 @@ void SetHeadRequest<I>::handle_set_parent(int r) {
   {
     // adjust in-memory parent now that it's updated on disk
     RWLock::WLocker parent_locker(m_image_ctx->parent_lock);
-    m_image_ctx->parent_md.spec = m_parent_spec;
-    m_image_ctx->parent_md.overlap = m_parent_overlap;
+    m_image_ctx->head_parent_overlap = m_parent_image_info.overlap;
   }
 
   finish(0);
