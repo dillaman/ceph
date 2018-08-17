@@ -190,8 +190,9 @@ Context *SetSnapRequest<I>::send_refresh_parent(int *result) {
     }
 
     parent_md = *parent_info;
+
     refresh_parent = RefreshParentRequest<I>::is_refresh_required(
-        m_image_ctx, parent_md, m_image_ctx.migration_info);
+        m_image_ctx, parent_md);
   }
 
   if (!refresh_parent) {

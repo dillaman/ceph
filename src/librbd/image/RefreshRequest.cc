@@ -712,16 +712,15 @@ Context *RefreshRequest<I>::handle_v2_get_snapshots(int *result) {
 
 template <typename I>
 void RefreshRequest<I>::send_v2_refresh_parent() {
-  {
+  if (!m_skip_open_parent_image) {
     RWLock::RLocker snap_locker(m_image_ctx.snap_lock);
     RWLock::RLocker parent_locker(m_image_ctx.parent_lock);
 
     ParentInfo parent_md;
     MigrationInfo migration_info;
     int r = get_parent_info(m_image_ctx.snap_id, &parent_md, &migration_info);
-    if (!m_skip_open_parent_image && (r < 0 ||
-        RefreshParentRequest<I>::is_refresh_required(m_image_ctx, parent_md,
-                                                     migration_info))) {
+    if (r < 0 ||
+        RefreshParentRequest<I>::is_refresh_required(m_image_ctx, parent_md)) {
       CephContext *cct = m_image_ctx.cct;
       ldout(cct, 10) << this << " " << __func__ << dendl;
 
@@ -1321,6 +1320,12 @@ int RefreshRequest<I>::get_parent_info(uint64_t snap_id,
   } else if (snap_id == CEPH_NOSNAP) {
     *parent_md = m_parent_md;
     *migration_info = {};
+
+    if (!m_snap_parents.empty()) {
+      // use the root parent image spec (since it can only be detached and
+      // not changed to a different image) -- stored in newest->oldest order
+      parent_md->spec = m_snap_parents.rbegin()->spec;
+    }
     return 0;
   } else {
     for (size_t i = 0; i < m_snapc.snaps.size(); ++i) {

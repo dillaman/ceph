@@ -48,8 +48,7 @@ struct RefreshParentRequest<MockRefreshImageCtx> {
     return s_instance;
   }
   static bool is_refresh_required(MockRefreshImageCtx &mock_image_ctx,
-                                  const ParentInfo& parent_md,
-                                  const MigrationInfo &migration_info) {
+                                  const ParentInfo& parent_md) {
     assert(s_instance != nullptr);
     return s_instance->is_refresh_required();
   }
