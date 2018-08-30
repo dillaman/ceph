@@ -26,6 +26,20 @@ struct Traits<MockManagedLockImageCtx> {
 };
 }
 
+struct MockMockManagedLock : public ManagedLock<MockManagedLockImageCtx> {
+  MockMockManagedLock(librados::IoCtx& ioctx, ContextWQ *work_queue,
+                 const std::string& oid, librbd::MockImageWatcher *watcher,
+                 managed_lock::Mode  mode, bool blacklist_on_break_lock, 
+                 uint32_t blacklist_expire_seconds)
+    : ManagedLock<MockManagedLockImageCtx>(ioctx, work_queue, oid, watcher, 
+      librbd::managed_lock::EXCLUSIVE, true, 0) {
+  };
+  virtual ~MockMockManagedLock() = default;
+
+  MOCK_METHOD2(pre_release_lock_handler, void(bool, Context*));
+  MOCK_METHOD3(post_release_lock_handler, void(bool, int, Context*));
+};
+
 namespace managed_lock {
 
 template<typename T>
@@ -146,6 +160,7 @@ using ::testing::DoAll;
 using ::testing::Invoke;
 using ::testing::InSequence;
 using ::testing::Return;
+using ::testing::WithArg;
 
 class TestMockManagedLock : public TestMockFixture {
 public:
@@ -186,6 +201,23 @@ public:
   void expect_flush_notifies(MockImageWatcher *mock_watcher) {
     EXPECT_CALL(*mock_watcher, flush(_))
                   .WillOnce(CompleteContext(0, (ContextWQ *)nullptr));
+  }
+
+  void expect_pre_release_lock_handler(MockMockManagedLock &managed_lock,
+                                       bool shutting_down, int r) {
+    EXPECT_CALL(managed_lock, pre_release_lock_handler(shutting_down, _))
+      .WillOnce(WithArg<1>(Invoke([r](Context *on_finish){
+                             on_finish->complete(r);
+                           })));
+  }
+
+  void expect_post_release_lock_handler(MockMockManagedLock &managed_lock,
+                                        bool shutting_down, int expect_r,
+                                        int r) {
+    EXPECT_CALL(managed_lock, post_release_lock_handler(shutting_down, expect_r, _))
+      .WillOnce(WithArg<2>(Invoke([r](Context *on_finish){
+                             on_finish->complete(r);
+                           })));
   }
 
   int when_acquire_lock(MockManagedLock &managed_lock) {
@@ -351,6 +383,28 @@ TEST_F(TestMockManagedLock, ReleaseLockUnlockedState) {
   InSequence seq;
 
   ASSERT_EQ(0, when_release_lock(managed_lock));
+
+  ASSERT_EQ(0, when_shut_down(managed_lock));
+}
+
+TEST_F(TestMockManagedLock, ReleaseLockBlacklist) {
+  librbd::ImageCtx *ictx;
+  ASSERT_EQ(0, open_image(m_image_name, &ictx));
+
+  MockManagedLockImageCtx mock_image_ctx(*ictx);
+  MockMockManagedLock managed_lock(ictx->md_ctx, ictx->op_work_queue,
+                                   ictx->header_oid, mock_image_ctx.image_watcher,
+                                   librbd::managed_lock::EXCLUSIVE, true, 0);
+  InSequence seq;
+
+  MockAcquireRequest try_lock_acquire;
+  expect_acquire_lock(*mock_image_ctx.image_watcher, ictx->op_work_queue, try_lock_acquire, 0);
+  ASSERT_EQ(0, when_acquire_lock(managed_lock));
+
+  expect_pre_release_lock_handler(managed_lock, false, -EBLACKLISTED);
+  expect_post_release_lock_handler(managed_lock, false, -EBLACKLISTED, -EBLACKLISTED);
+  ASSERT_EQ(-EBLACKLISTED, when_release_lock(managed_lock));
+  ASSERT_FALSE(is_lock_owner(managed_lock));
 
   ASSERT_EQ(0, when_shut_down(managed_lock));
 }

@@ -241,6 +241,10 @@ private:
   void handle_notify(uint64_t notify_id, uint64_t handle,
                      uint64_t notifier_id, bufferlist &bl) override;
   void handle_error(uint64_t cookie, int err) override;
+
+  virtual bool force_rewatch_on_error() const {
+    return true;
+  }
   void handle_rewatch_complete(int r) override;
 
   void send_notify(const watch_notify::Payload& payload,

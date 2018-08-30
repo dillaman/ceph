@@ -35,7 +35,10 @@ void RewatchRequest::send() {
 
 void RewatchRequest::unwatch() {
   assert(m_watch_lock.is_wlocked());
-  assert(*m_watch_handle != 0);
+  if (*m_watch_handle == 0) {
+    rewatch();
+    return;
+  }
 
   CephContext *cct = reinterpret_cast<CephContext *>(m_ioctx.cct());
   ldout(cct, 10) << dendl;
@@ -80,8 +83,7 @@ void RewatchRequest::handle_rewatch(int r) {
   if (r < 0) {
     lderr(cct) << "failed to watch object: " << cpp_strerror(r)
                << dendl;
-    finish(r);
-    return;
+    m_rewatch_handle = 0;
   }
 
   {
@@ -89,7 +91,7 @@ void RewatchRequest::handle_rewatch(int r) {
     *m_watch_handle = m_rewatch_handle;
   }
 
-  finish(0);
+  finish(r);
 }
 
 void RewatchRequest::finish(int r) {

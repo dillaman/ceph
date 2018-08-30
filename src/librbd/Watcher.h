@@ -97,6 +97,9 @@ protected:
   void acknowledge_notify(uint64_t notify_id, uint64_t handle,
                           bufferlist &out);
 
+  virtual bool force_rewatch_on_error() const {
+    return false;
+  }
   virtual void handle_rewatch_complete(int r) { }
 
 private:

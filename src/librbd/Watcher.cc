@@ -315,7 +315,11 @@ void Watcher::handle_rewatch_callback(int r) {
       m_watch_state = WATCH_STATE_IDLE;
       std::swap(unregister_watch_ctx, m_unregister_watch_ctx);
     } else if (r  == -EBLACKLISTED || r == -ENOENT) {
-      m_watch_state = WATCH_STATE_IDLE;
+      if (force_rewatch_on_error()) {
+        watch_error = true;
+      } else {
+        m_watch_state = WATCH_STATE_IDLE;
+      }
     } else if (m_watch_error) {
       watch_error = true;
     } else {
