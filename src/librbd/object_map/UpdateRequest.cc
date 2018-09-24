@@ -72,6 +72,15 @@ template <typename I>
 void UpdateRequest<I>::handle_update_object_map(int r) {
   ldout(m_image_ctx.cct, 20) << "r=" << r << dendl;
 
+  if (r == -ENOENT && m_ignore_enoent) {
+    // ignore potential race with deleting a snapshot when copyup
+    // races with a snapshot removal
+    r = 0;
+  }
+  if (r < 0 && m_ret_val == 0) {
+    m_ret_val = r;
+  }
+
   {
     RWLock::RLocker snap_locker(m_image_ctx.snap_lock);
     RWLock::WLocker object_map_locker(m_image_ctx.object_map_lock);
@@ -85,7 +94,7 @@ void UpdateRequest<I>::handle_update_object_map(int r) {
   }
 
   // no more batch updates to send
-  complete(r);
+  complete(m_ret_val);
 }
 
 template <typename I>
