@@ -5,17 +5,17 @@ import { BsDropdownModule } from 'ngx-bootstrap/dropdown';
 import { ProgressbarModule } from 'ngx-bootstrap/progressbar';
 import { TabsModule } from 'ngx-bootstrap/tabs';
 
-import { configureTestBed } from '../../../../testing/unit-test-helper';
-import { SharedModule } from '../../../shared/shared.module';
+import { configureTestBed } from '../../../../../testing/unit-test-helper';
+import { SharedModule } from '../../../../shared/shared.module';
 import { MirrorHealthColorPipe } from '../mirror-health-color.pipe';
-import { MirroringComponent } from './mirroring.component';
+import { DaemonListComponent } from './daemon-list.component';
 
-describe('MirroringComponent', () => {
-  let component: MirroringComponent;
-  let fixture: ComponentFixture<MirroringComponent>;
+describe('DaemonListComponent', () => {
+  let component: DaemonListComponent;
+  let fixture: ComponentFixture<DaemonListComponent>;
 
   configureTestBed({
-    declarations: [MirroringComponent, MirrorHealthColorPipe],
+    declarations: [DaemonListComponent, MirrorHealthColorPipe],
     imports: [
       SharedModule,
       BsDropdownModule.forRoot(),
@@ -26,7 +26,7 @@ describe('MirroringComponent', () => {
   });
 
   beforeEach(() => {
-    fixture = TestBed.createComponent(MirroringComponent);
+    fixture = TestBed.createComponent(DaemonListComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
   });
