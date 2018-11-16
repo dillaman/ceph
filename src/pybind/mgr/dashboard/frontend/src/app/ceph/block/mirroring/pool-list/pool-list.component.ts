@@ -2,6 +2,10 @@ import { Component, OnDestroy, OnInit, TemplateRef, ViewChild } from '@angular/c
 import { Subscription } from 'rxjs';
 
 import { RbdMirroringService } from '../../../../shared/api/rbd-mirroring.service';
+import { CdTableAction } from '../../../../shared/models/cd-table-action';
+import { CdTableSelection } from '../../../../shared/models/cd-table-selection';
+import { Permission } from '../../../../shared/models/permissions';
+import { AuthStorageService } from '../../../../shared/services/auth-storage.service';
 
 @Component({
   selector: 'cd-mirroring-pools',
@@ -14,10 +18,55 @@ export class PoolListComponent implements OnInit, OnDestroy {
 
   subs: Subscription;
 
+  permission: Permission;
+  tableActions: CdTableAction[];
+  selection = new CdTableSelection();
+
   data: [];
   columns: {};
 
-  constructor(private rbdMirroringService: RbdMirroringService) {}
+  constructor(
+    private authStorageService: AuthStorageService,
+    private rbdMirroringService: RbdMirroringService
+  ) {
+    this.permission = this.authStorageService.getPermissions().rbdMirroring;
+
+    const editModeAction: CdTableAction = {
+      permission: 'update',
+      icon: 'fa-edit',
+      click: () => this.editModeModal(),
+      name: 'Edit Mode'
+    };
+    const addPeerAction: CdTableAction = {
+      permission: 'create',
+      icon: 'fa-plus',
+      name: 'Add Peer',
+      click: () => this.editPeersModal('add'),
+      disable: (selection: CdTableSelection) => (
+        !this.selection.first() || this.selection.first().mirror_mode == 'disabled'),
+      visible: (selection: CdTableSelection) => true
+    };
+    const editPeerAction: CdTableAction = {
+      permission: 'update',
+      icon: 'fa-exchange',
+      name: 'Edit Peer',
+      click: () => this.editPeersModal('edit'),
+      visible: (selection: CdTableSelection) => true
+    };
+    const deletePeerAction: CdTableAction = {
+      permission: 'delete',
+      icon: 'fa-times',
+      name: 'Delete Peer',
+      click: () => this.editPeersModal('delete'),
+      visible: (selection: CdTableSelection) => true
+    };
+    this.tableActions = [
+      editModeAction,
+      addPeerAction,
+      editPeerAction,
+      deletePeerAction
+    ];
+  }
 
   ngOnInit() {
     this.columns = [
@@ -48,5 +97,15 @@ export class PoolListComponent implements OnInit, OnDestroy {
 
   refresh() {
     this.rbdMirroringService.refresh();
+  }
+
+  editModeModal() {
+  }
+
+  editPeersModal(mode) {
+  }
+
+  updateSelection(selection: CdTableSelection) {
+    this.selection = selection;
   }
 }
