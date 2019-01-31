@@ -26,6 +26,7 @@
 #include "include/types.h"
 #include <include/stringify.h>
 
+#include "librados/librados_c.h"
 #include "librados/AioCompletionImpl.h"
 #include "librados/IoCtxImpl.h"
 #include "librados/PoolAsyncCompletionImpl.h"
