@@ -9,7 +9,7 @@ add_library(librados_impl STATIC
 add_library(librados ${CEPH_SHARED}
   librados_c.cc
   librados_cxx.cc
-  ../common/buffer.cc)
+  librados_cxx_buffer.cc)
 if(ENABLE_SHARED)
   set_target_properties(librados PROPERTIES
     OUTPUT_NAME rados
