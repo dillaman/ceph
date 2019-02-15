@@ -11,13 +11,12 @@
 #include "librbd/ExclusiveLock.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/ImageState.h"
-#include "librbd/Utils.h"
-#include "librbd/image/CloneRequest.h"
-#include "librbd/image/RemoveRequest.h"
 #include "librbd/internal.h"
 #include "librbd/Utils.h"
 #include "librbd/api/Config.h"
 #include "librbd/api/Trash.h"
+#include "librbd/image/RemoveRequest.h"
+#include "librbd/image/CloneRequest.h"
 #include <boost/scope_exit.hpp>
 
 #define dout_subsys ceph_subsys_rbd
@@ -596,60 +595,62 @@ int Image<I>::snap_set(I *ictx, uint64_t snap_id) {
 
 template <typename I>
 int Image<I>::remove(IoCtx& io_ctx, const std::string &image_name,
-                     const std::string &image_id, ProgressContext& prog_ctx,
-                     bool force, bool from_trash_remove)
+                     ProgressContext& prog_ctx)
 {
   CephContext *cct((CephContext *)io_ctx.cct());
-  ldout(cct, 20) << (image_id.empty() ? image_name : image_id) << dendl;
+  ldout(cct, 20) << "name=" << image_name << dendl;
 
-  if (image_id.empty()) {
-    // id will only be supplied when used internally
+  // look up the V2 image id based on the image name
+  std::string image_id;
+  int r = cls_client::dir_get_id(&io_ctx, RBD_DIRECTORY, image_name,
+                                 &image_id);
+  if (r == -ENOENT) {
+    // check if it already exists in trash from an aborted trash remove attempt
+    std::vector<trash_image_info_t> trash_entries;
+    r = Trash<I>::list(io_ctx, trash_entries);
+    if (r < 0) {
+      return r;
+    } else if (r >= 0) {
+      for (auto& entry : trash_entries) {
+        if (entry.name == image_name &&
+            entry.source == RBD_TRASH_IMAGE_SOURCE_REMOVE) {
+          return Trash<I>::remove(io_ctx, entry.id, true, prog_ctx);
+        }
+      }
+    }
+
+    // fall-through if we failed to locate the image in the V2 directory and
+    // trash
+  } else if (r < 0) {
+    lderr(cct) << "failed to retrieve image id: " << cpp_strerror(r) << dendl;
+    return r;
+  } else {
+    // attempt to move the image to the trash (and optionally immediately
+    // delete the image)
     ConfigProxy config(cct->_conf);
     Config<I>::apply_pool_overrides(io_ctx, &config);
 
-    std::string image_id;
-    int r = cls_client::dir_get_id(&io_ctx, RBD_DIRECTORY, image_name,
-                                   &image_id);
-    if (r < 0 && r != -ENOENT) {
-      lderr(cct) << "failed to retrieve image id: " << cpp_strerror(r) << dendl;
-      return r;
+    rbd_trash_image_source_t trash_image_source = RBD_TRASH_IMAGE_SOURCE_REMOVE;
+    uint64_t expire_seconds = 0;
+    bool check_watchers = true;
+    if (config.get_val<bool>("rbd_move_to_trash_on_remove")) {
+      // keep the image in the trash upon remove requests
+      trash_image_source = RBD_TRASH_IMAGE_SOURCE_USER;
+      expire_seconds = config.get_val<uint64_t>(
+        "rbd_move_to_trash_on_remove_expire_seconds");
+      check_watchers = false;
     }
 
-    if(r == 0) {
-      auto expire_seconds = config.get_val<uint64_t>(
-        "rbd_move_to_trash_on_remove_expire_seconds");
-
-      if (config.get_val<bool>("rbd_move_to_trash_on_remove")) {
-        return Trash<I>::move_by_id(
-          io_ctx, RBD_TRASH_IMAGE_SOURCE_USER, image_id, image_name,
-          expire_seconds, true);
-      } else {
-        r = Trash<I>::move_by_id(
-          io_ctx, RBD_TRASH_IMAGE_SOURCE_REMOVE, image_id, image_name,
-          expire_seconds, true);
-
-        if (r == -ENOENT) {
-          // check if it already exists in trash from an aborted
-          // remove attempt
-          std::vector<trash_image_info_t> trash_entries;
-          r = Trash<I>::list(io_ctx, trash_entries);
-          if (r < 0) {
-            return r;
-          }
-
-          for (auto& entry : trash_entries) {
-            if (entry.name == image_name &&
-                entry.source == RBD_TRASH_IMAGE_SOURCE_REMOVE) {
-              return Trash<I>::remove(io_ctx, image_id, force, prog_ctx);
-            }
-          }
-          return -ENOENT;
-        } else if (r < 0) {
-          return r;
-        }
-
-        return Trash<I>::remove(io_ctx, image_id, force, prog_ctx);
+    r = Trash<I>::move(io_ctx, trash_image_source, image_name, image_id,
+                       expire_seconds, check_watchers);
+    if (r >= 0) {
+      if (trash_image_source == RBD_TRASH_IMAGE_SOURCE_REMOVE) {
+        // proceed with attempting to immediately remove the image
+        r = Trash<I>::remove(io_ctx, image_id, true, prog_ctx);
       }
+      return r;
+    } else if (r < 0 && r != -EOPNOTSUPP) {
+      return r;
     }
   }
 
@@ -657,10 +658,12 @@ int Image<I>::remove(IoCtx& io_ctx, const std::string &image_name,
   ContextWQ *op_work_queue;
   ImageCtx::get_thread_pool_instance(cct, &thread_pool, &op_work_queue);
 
+  // might be a V1 image format that cannot be moved to the trash
+  // and would not have been listed in the V2 directory -- or the OSDs
+  // are too old and don't support the trash feature
   C_SaferCond cond;
   auto req = librbd::image::RemoveRequest<>::create(
-    io_ctx, image_name, image_id, force, from_trash_remove, prog_ctx,
-    op_work_queue, &cond);
+    io_ctx, image_name, "", false, false, prog_ctx, op_work_queue, &cond);
   req->send();
 
   return cond.wait();

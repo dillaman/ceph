@@ -326,7 +326,7 @@ TEST_F(TestInternal, FlattenFailsToLockImage) {
       parent->unlock_image();
     }
     librbd::NoOpProgressContext no_op;
-    ASSERT_EQ(0, librbd::api::Image<>::remove(m_ioctx, clone_name, "", no_op));
+    ASSERT_EQ(0, librbd::api::Image<>::remove(m_ioctx, clone_name, no_op));
   } BOOST_SCOPE_EXIT_END;
 
   ASSERT_EQ(0, open_image(clone_name, &ictx2));
@@ -890,7 +890,7 @@ TEST_F(TestInternal, WriteFullCopyup) {
     }
 
     librbd::NoOpProgressContext remove_no_op;
-    ASSERT_EQ(0, librbd::api::Image<>::remove(m_ioctx, clone_name, "",
+    ASSERT_EQ(0, librbd::api::Image<>::remove(m_ioctx, clone_name,
                                               remove_no_op));
   } BOOST_SCOPE_EXIT_END;
 
@@ -923,20 +923,6 @@ TEST_F(TestInternal, WriteFullCopyup) {
             ictx2->io_work_queue->read(0, read_bl.length(),
                                        librbd::io::ReadResult{read_result}, 0));
   ASSERT_TRUE(bl.contents_equal(read_bl));
-}
-
-TEST_F(TestInternal, RemoveById) {
-  REQUIRE_FEATURE(RBD_FEATURE_LAYERING);
-
-  librbd::ImageCtx *ictx;
-  ASSERT_EQ(0, open_image(m_image_name, &ictx));
-
-  std::string image_id = ictx->id;
-  close_image(ictx);
-
-  librbd::NoOpProgressContext remove_no_op;
-  ASSERT_EQ(0, librbd::api::Image<>::remove(m_ioctx, "", image_id,
-                                            remove_no_op));
 }
 
 static int iterate_cb(uint64_t off, size_t len, int exists, void *arg)
