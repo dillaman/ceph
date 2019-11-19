@@ -3,6 +3,11 @@ overrides:
     conf:
       client:
         rbd cache: false
+        rbd io scheduler: 'none'
+      client.0:
+        debug rbd: 20
+        debug journaler: 20
+        admin socket: '/var/run/ceph/$cluster-$name.$pid.$cctid.asok'
 op_workload:
   sequential:
     - workunit:
