@@ -281,6 +281,9 @@ function install_xfstests() {
 
 	# FIXME: use an older version before the tests were rearranged!
 	git reset --hard e5f1a13792f20cfac097fef98007610b422f2cac
+        git config user.email "you@example.com"
+        git config user.name "Your Name"
+	git cherry-pick 8c3016bc8446f2c3079d2665960d0a2ae980713c
 
 	ncpu=$(getconf _NPROCESSORS_ONLN 2>&1)
 	[ -n "${ncpu}" -a "${ncpu}" -gt 1 ] && multiple="-j ${ncpu}"

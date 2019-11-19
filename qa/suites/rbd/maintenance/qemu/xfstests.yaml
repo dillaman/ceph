@@ -11,4 +11,20 @@ io_workload:
           disks: 3
           time_wait: 120
           test: qa/run_xfstests_qemu.sh
+          image_url: https://cloud-images.ubuntu.com/xenial/current/xenial-server-cloudimg-amd64-disk1.img
+          cloud_config_archive:
+          - |
+            #!/bin/bash -ex
+            DEBIAN_FRONTEND=noninteractive apt-get -y install \
+              make autoconf gcc libtool libtool-bin \
+              xfslibs-dev uuid-dev e2fsprogs libuuid1 quota attr libattr1-dev \
+              libacl1-dev libaio-dev xfsprogs libgdbm-dev gawk fio dbench \
+              uuid-runtime python sqlite3 bc xfsprogs
+
+            echo > /usr/bin/xfs_check << EOF
+              #!/bin/bash
+              exit 0
+            EOF
+            chmod +x /usr/bin/xfs_check
+
 exclude_arch: armv7l

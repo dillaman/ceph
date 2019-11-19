@@ -84,12 +84,6 @@ def create_dirs(ctx, config):
                 '{tdir}/archive/qemu'.format(tdir=testdir),
                 ]
             )
-        remote.run(
-            args=[
-                'rbd', 'config', 'image', 'set',
-                'client.0.2-clone', 'rbd_debug_dump_writes', 'true',
-                ]
-            )
 
     try:
         yield
@@ -353,6 +347,14 @@ def run_qemu(ctx, config):
     testdir = teuthology.get_testdir(ctx)
     for client, client_config in config.items():
         (remote,) = ctx.cluster.only(client).remotes.keys()
+
+        remote.run(
+            args=[
+                'rbd', 'config', 'image', 'set',
+                'client.0.2-clone', 'rbd_debug_dump_writes', 'true',
+                ]
+            )
+
         log_dir = '{tdir}/archive/qemu/{client}'.format(tdir=testdir, client=client)
         remote.run(
             args=[
