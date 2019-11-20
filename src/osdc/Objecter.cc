@@ -2017,6 +2017,27 @@ void Objecter::_kick_requests(OSDSession *session,
 
   logger->inc(l_osdc_op_resend, resend.size());
   while (!resend.empty()) {
+    // TMP
+    // verify that the data crc is correct
+
+    auto osd_op = resend.begin()->second;
+    auto& ops = osd_op->ops;
+    for (unsigned i = 0; i < ops.size(); i++) {
+      if (ops[i].indata.length()) {
+        auto original_crc = ops[i].indata.crc32c(0);
+        ops[i].indata.invalidate_crc();
+        auto new_crc = ops[i].indata.crc32c(0);
+        if (original_crc != new_crc) {
+          ldout(cct, 0) << "CRC CORRUPTION: "
+                        << "original_crc=" << original_crc << ", "
+                        << "new_crc=" << new_crc << ", "
+                        << "data=";
+          ops[i].indata.hexdump(*_dout);
+          *_dout << dendl;
+        }
+      }
+    }
+
     _send_op(resend.begin()->second);
     resend.erase(resend.begin());
   }

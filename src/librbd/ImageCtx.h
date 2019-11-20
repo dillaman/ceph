@@ -184,6 +184,7 @@ namespace librbd {
     bool ignore_migrating = false;
     bool disable_zero_copy = false;
     bool enable_sparse_copyup = false;
+    bool debug_dump_writes = false;
 
     /// Cached latency-sensitive configuration settings
     bool non_blocking_aio;

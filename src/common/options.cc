@@ -7297,6 +7297,9 @@ static std::vector<Option> get_rbd_options() {
     .set_default(0)
     .set_min(0)
     .set_description("maximum io delay (in milliseconds) for simple io scheduler (if set to 0 dalay is calculated based on latency stats)"),
+
+    Option("rbd_debug_dump_writes", Option::TYPE_BOOL, Option::LEVEL_ADVANCED)
+    .set_default(true),
   });
 }
 

@@ -314,6 +314,13 @@ void ImageRequestWQ<I>::aio_write(AioCompletion *c, uint64_t off, uint64_t len,
     trace.event("init");
   }
 
+  if (m_image_ctx.debug_dump_writes) {
+    ldout(cct, 0) << "aio_completion=" << c << " " << off << "~" << len << " "
+                  << "crc=" << bl.crc32c(0) << " data=";
+    bl.hexdump(*_dout);
+    *_dout << dendl;
+  }
+
   c->init_time(util::get_image_ctx(&m_image_ctx), AIO_TYPE_WRITE);
   ldout(cct, 20) << "ictx=" << &m_image_ctx << ", "
                  << "completion=" << c << ", off=" << off << ", "

@@ -308,6 +308,7 @@ struct MockImageCtx {
   uint64_t mtime_update_interval;
   uint64_t atime_update_interval;
   bool cache;
+  bool debug_dump_writes = false;
 
   ConfigProxy config;
 };
