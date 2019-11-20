@@ -84,6 +84,13 @@ def create_dirs(ctx, config):
                 '{tdir}/archive/qemu'.format(tdir=testdir),
                 ]
             )
+        remote.run(
+            args=[
+                'rbd', 'config', 'image', 'set',
+                'client.0.2-clone', 'rbd_debug_dump_writes', 'true',
+                ]
+            )
+
     try:
         yield
     finally:
