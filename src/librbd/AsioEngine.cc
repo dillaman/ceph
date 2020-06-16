@@ -20,6 +20,7 @@ AsioEngine::AsioEngine(librados::Rados& rados)
       neorados::RADOS::make_with_librados(rados))),
     m_cct(m_rados_api->cct()),
     m_io_context(m_rados_api->get_io_context()),
+    m_api_strand(m_io_context),
     m_context_wq(std::make_unique<asio::ContextWQ>(m_io_context)) {
   auto rados_threads = m_cct->_conf.get_val<uint64_t>("librados_thread_count");
   auto rbd_threads = m_cct->_conf.get_val<uint64_t>("rbd_op_threads");
