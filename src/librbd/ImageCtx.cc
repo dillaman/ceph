@@ -107,7 +107,6 @@ public:
       asio_engine(get_asio_engine(cct)),
       op_work_queue(nullptr),
       plugin_registry(new PluginRegistry<ImageCtx>(this)),
-      external_callback_completions(32),
       event_socket_completions(32),
       asok_hook(nullptr),
       trace_endpoint("librbd")
