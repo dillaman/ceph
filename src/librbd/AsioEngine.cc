@@ -2,6 +2,7 @@
 // vim: ts=8 sw=2 smarttab
 
 #include "librbd/AsioEngine.h"
+#include "include/Context.h"
 #include "common/dout.h"
 #include "common/async/context_pool.h"
 #include "librbd/asio/ContextWQ.h"
@@ -23,6 +24,14 @@ AsioEngine::AsioEngine(CephContext* cct)
 }
 
 AsioEngine::~AsioEngine() {
+}
+
+void AsioEngine::dispatch(Context* ctx, int r) {
+  dispatch([ctx, r]() { ctx->complete(r); });
+}
+
+void AsioEngine::post(Context* ctx, int r) {
+  post([ctx, r]() { ctx->complete(r); });
 }
 
 } // namespace librbd

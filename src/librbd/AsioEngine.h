@@ -6,9 +6,12 @@
 
 #include "include/common_fwd.h"
 #include <memory>
+#include <boost/asio/dispatch.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/io_context_strand.hpp>
+#include <boost/asio/post.hpp>
 
+struct Context;
 namespace ceph { namespace async { struct io_context_pool; }}
 
 namespace librbd {
@@ -41,6 +44,18 @@ public:
   inline asio::ContextWQ* get_work_queue() {
     return m_context_wq.get();
   }
+
+  template <typename T>
+  void dispatch(T&& t) {
+    boost::asio::dispatch(m_io_context, std::forward<T>(t));
+  }
+  void dispatch(Context* ctx, int r);
+
+  template <typename T>
+  void post(T&& t) {
+    boost::asio::post(m_io_context, std::forward<T>(t));
+  }
+  void post(Context* ctx, int r);
 
 private:
   CephContext* m_cct;
