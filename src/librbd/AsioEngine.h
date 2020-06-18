@@ -6,11 +6,9 @@
 
 #include "include/common_fwd.h"
 #include <memory>
-#include <optional>
-#include <thread>
-#include <vector>
-#include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/io_context.hpp>
+
+namespace ceph { namespace async { struct io_context_pool; }}
 
 namespace librbd {
 
@@ -30,27 +28,20 @@ public:
   inline operator boost::asio::io_context&() {
     return m_io_context;
   }
+  inline boost::asio::io_context::executor_type get_executor() {
+    return m_io_context.get_executor();
+  }
 
   inline asio::ContextWQ* get_work_queue() {
-    return m_work_queue.get();
+    return m_context_wq.get();
   }
 
 private:
-  typedef std::vector<std::thread> Threads;
-
-  typedef boost::asio::executor_work_guard<
-    boost::asio::io_context::executor_type> WorkGuard;
-
   CephContext* m_cct;
-  Threads m_threads;
+  std::unique_ptr<ceph::async::io_context_pool> m_io_context_pool;
 
-  boost::asio::io_context m_io_context;
-  std::optional<WorkGuard> m_work_guard;
-
-  std::unique_ptr<asio::ContextWQ> m_work_queue;
-
-  void init();
-  void shut_down();
+  boost::asio::io_context& m_io_context;
+  std::unique_ptr<asio::ContextWQ> m_context_wq;
 
 };
 
