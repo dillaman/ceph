@@ -71,11 +71,6 @@ public:
   }
 };
 
-boost::asio::io_context& get_asio_engine_io_context(CephContext* cct) {
-  auto asio_engine_singleton = ImageCtx::get_asio_engine(cct);
-  return asio_engine_singleton->get_io_context();
-}
-
 librados::IoCtx duplicate_io_ctx(librados::IoCtx& io_ctx) {
   librados::IoCtx dup_io_ctx;
   dup_io_ctx.dup(io_ctx);
@@ -97,6 +92,7 @@ librados::IoCtx duplicate_io_ctx(librados::IoCtx& io_ctx) {
       read_only_flags(ro ? IMAGE_READ_ONLY_FLAG_USER : 0U),
       exclusive_locked(false),
       name(image_name),
+      asio_engine(get_asio_engine(cct)),
       data_ctx(duplicate_io_ctx(p)),
       md_ctx(duplicate_io_ctx(p)),
       image_watcher(NULL),
@@ -117,7 +113,6 @@ librados::IoCtx duplicate_io_ctx(librados::IoCtx& io_ctx) {
       state(new ImageState<>(this)),
       operations(new Operations<>(*this)),
       exclusive_lock(nullptr), object_map(nullptr),
-      io_context(get_asio_engine_io_context(cct)),
       op_work_queue(nullptr),
       plugin_registry(new PluginRegistry<ImageCtx>(this)),
       external_callback_completions(32),
@@ -905,15 +900,15 @@ librados::IoCtx duplicate_io_ctx(librados::IoCtx& io_ctx) {
     journal_policy = policy;
   }
 
-  AsioEngine* ImageCtx::get_asio_engine(CephContext* cct) {
-    return &cct->lookup_or_create_singleton_object<AsioEngine>(
+  AsioEngine& ImageCtx::get_asio_engine(CephContext* cct) {
+    return cct->lookup_or_create_singleton_object<AsioEngine>(
       "librbd::AsioEngine", false, cct);
   }
 
   void ImageCtx::get_work_queue(librados::IoCtx& io_ctx,
                                 asio::ContextWQ **op_work_queue) {
     auto cct = static_cast<CephContext*>(io_ctx.cct());
-    *op_work_queue = get_asio_engine(cct)->get_work_queue();
+    *op_work_queue = get_asio_engine(cct).get_work_queue();
   }
 
   void ImageCtx::get_timer_instance(CephContext* cct, SafeTimer **timer,
