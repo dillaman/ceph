@@ -92,7 +92,7 @@ librados::IoCtx duplicate_io_ctx(librados::IoCtx& io_ctx) {
       read_only_flags(ro ? IMAGE_READ_ONLY_FLAG_USER : 0U),
       exclusive_locked(false),
       name(image_name),
-      asio_engine(get_asio_engine(cct)),
+      asio_engine(get_asio_engine(p)),
       data_ctx(duplicate_io_ctx(p)),
       md_ctx(duplicate_io_ctx(p)),
       image_watcher(NULL),
@@ -900,15 +900,16 @@ librados::IoCtx duplicate_io_ctx(librados::IoCtx& io_ctx) {
     journal_policy = policy;
   }
 
-  AsioEngine& ImageCtx::get_asio_engine(CephContext* cct) {
+  AsioEngine& ImageCtx::get_asio_engine(librados::IoCtx& io_ctx) {
+    auto cct = static_cast<CephContext*>(io_ctx.cct());
+    librados::Rados rados(io_ctx);
     return cct->lookup_or_create_singleton_object<AsioEngine>(
-      "librbd::AsioEngine", false, cct);
+      "librbd::AsioEngine", false, rados);
   }
 
   void ImageCtx::get_work_queue(librados::IoCtx& io_ctx,
                                 asio::ContextWQ **op_work_queue) {
-    auto cct = static_cast<CephContext*>(io_ctx.cct());
-    *op_work_queue = get_asio_engine(cct).get_work_queue();
+    *op_work_queue = get_asio_engine(io_ctx).get_work_queue();
   }
 
   void ImageCtx::get_timer_instance(CephContext* cct, SafeTimer **timer,

@@ -127,21 +127,21 @@ add_executable(unittest_librbd
   $<TARGET_OBJECTS:common_texttable_obj>)
 target_compile_definitions(unittest_librbd PRIVATE "TEST_LIBRBD_INTERNALS")
 target_link_libraries(unittest_librbd
-  cls_rbd
-  cls_rbd_client
-  cls_lock
-  cls_lock_client
-  journal
-  journal_test_mock
-  cls_journal
-  cls_journal_client
-  rados_test_stub
-  librados
   rbd_test
   rbd_test_mock
   rbd_api
   rbd_internal
   rbd_types
+  journal
+  journal_test_mock
+  cls_rbd
+  cls_rbd_client
+  cls_lock
+  cls_lock_client
+  cls_journal
+  cls_journal_client
+  rados_test_stub
+  librados
   ceph_immutable_object_cache_lib
   osdc
   ceph-common
@@ -159,6 +159,7 @@ target_link_libraries(ceph_test_librbd
   journal
   cls_journal_client
   cls_rbd_client
+  libneorados
   librados
   ${UNITTEST_LIBS}
   radostest)

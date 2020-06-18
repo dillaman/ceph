@@ -344,7 +344,7 @@ namespace librbd {
     journal::Policy *get_journal_policy() const;
     void set_journal_policy(journal::Policy *policy);
 
-    static AsioEngine& get_asio_engine(CephContext* cct);
+    static AsioEngine& get_asio_engine(librados::IoCtx& io_ctx);
 
     static void get_work_queue(librados::IoCtx& io_ctx,
                                asio::ContextWQ **op_work_queue);

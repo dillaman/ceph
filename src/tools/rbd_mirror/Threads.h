@@ -5,6 +5,7 @@
 #define CEPH_RBD_MIRROR_THREADS_H
 
 #include "include/common_fwd.h"
+#include "include/rados/librados_fwd.hpp"
 #include "common/ceph_mutex.h"
 
 class SafeTimer;
@@ -30,7 +31,7 @@ public:
   SafeTimer *timer = nullptr;
   ceph::mutex timer_lock = ceph::make_mutex("Threads::timer_lock");
 
-  explicit Threads(CephContext *cct);
+  explicit Threads(librados::Rados& rados);
   Threads(const Threads&) = delete;
   Threads& operator=(const Threads&) = delete;
 
