@@ -21,7 +21,13 @@ public:
   explicit AsioEngine(CephContext* cct);
   ~AsioEngine();
 
+  AsioEngine(const AsioEngine&) = delete;
+  AsioEngine& operator=(const AsioEngine&) = delete;
+
   inline boost::asio::io_context& get_io_context() {
+    return m_io_context;
+  }
+  inline operator boost::asio::io_context&() {
     return m_io_context;
   }
 

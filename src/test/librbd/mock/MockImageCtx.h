@@ -83,6 +83,7 @@ struct MockImageCtx {
       format_string(image_ctx.format_string),
       group_spec(image_ctx.group_spec),
       layout(image_ctx.layout),
+      asio_engine(image_ctx.asio_engine),
       io_image_dispatcher(new io::MockImageDispatcher()),
       io_object_dispatcher(new io::MockObjectDispatcher()),
       op_work_queue(new MockContextWQ()),
@@ -283,6 +284,7 @@ struct MockImageCtx {
 
   std::map<uint64_t, io::CopyupRequest<MockImageCtx>*> copyup_list;
 
+  AsioEngine& asio_engine;
   io::MockImageDispatcher *io_image_dispatcher;
   io::MockObjectDispatcher *io_object_dispatcher;
   MockContextWQ *op_work_queue;

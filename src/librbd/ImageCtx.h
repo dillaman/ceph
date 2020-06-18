@@ -32,7 +32,6 @@
 #include "librbd/AsyncRequest.h"
 #include "librbd/Types.h"
 
-#include <boost/asio/io_context.hpp>
 #include <boost/lockfree/policies.hpp>
 #include <boost/lockfree/queue.hpp>
 
@@ -181,7 +180,7 @@ namespace librbd {
 
     xlist<operation::ResizeRequest<ImageCtx>*> resize_reqs;
 
-    boost::asio::io_context& io_context;
+    AsioEngine& asio_engine;
 
     io::ImageDispatcherInterface *io_image_dispatcher = nullptr;
     io::ObjectDispatcherInterface *io_object_dispatcher = nullptr;
@@ -344,7 +343,7 @@ namespace librbd {
     journal::Policy *get_journal_policy() const;
     void set_journal_policy(journal::Policy *policy);
 
-    static AsioEngine* get_asio_engine(CephContext* cct);
+    static AsioEngine& get_asio_engine(CephContext* cct);
     static void get_work_queue(CephContext *cct,
                                asio::ContextWQ **op_work_queue);
     static void get_timer_instance(CephContext *cct, SafeTimer **timer,
