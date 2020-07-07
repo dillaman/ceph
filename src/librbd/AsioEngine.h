@@ -23,6 +23,10 @@ public:
   AsioEngine(const AsioEngine&) = delete;
   AsioEngine& operator=(const AsioEngine&) = delete;
 
+  inline neorados::RADOS& get_rados_api() {
+    return *m_rados_api;
+  }
+
   inline boost::asio::io_context& get_io_context() {
     return m_io_context;
   }

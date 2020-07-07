@@ -8,6 +8,7 @@
 #include <atomic>
 #include <list>
 #include <map>
+#include <memory>
 #include <set>
 #include <string>
 #include <vector>
@@ -38,6 +39,11 @@
 class Finisher;
 class ThreadPool;
 class SafeTimer;
+
+namespace neorados {
+class IOContext;
+class RADOS;
+} // namespace neorados
 
 namespace librbd {
 
@@ -111,7 +117,13 @@ namespace librbd {
 
     AsioEngine& asio_engine;
 
-    IoCtx data_ctx, md_ctx;
+    // New ASIO-style RADOS API
+    neorados::RADOS& rados_api;
+
+    // Legacy RADOS API
+    librados::IoCtx data_ctx;
+    librados::IoCtx md_ctx;
+
     ImageWatcher<ImageCtx> *image_watcher;
     Journal<ImageCtx> *journal;
 
@@ -344,12 +356,18 @@ namespace librbd {
     journal::Policy *get_journal_policy() const;
     void set_journal_policy(journal::Policy *policy);
 
+    void rebuild_data_io_context();
+    IOContext get_data_io_context() const;
+
     static AsioEngine& get_asio_engine(librados::IoCtx& io_ctx);
 
     static void get_work_queue(librados::IoCtx& io_ctx,
                                asio::ContextWQ **op_work_queue);
     static void get_timer_instance(CephContext* cct, SafeTimer **timer,
                                    ceph::mutex **timer_lock);
+
+  private:
+    std::shared_ptr<neorados::IOContext> data_io_context;
   };
 }
 
