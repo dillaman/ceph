@@ -233,11 +233,11 @@ private:
 
 class QuiesceWatchers {
 public:
-  explicit QuiesceWatchers(CephContext *cct)
-    : m_cct(cct),
+  explicit QuiesceWatchers(librados::IoCtx& io_ctx)
+    : m_cct(static_cast<CephContext*>(io_ctx.cct())),
       m_lock(ceph::make_mutex(util::unique_lock_name(
         "librbd::QuiesceWatchers::m_lock", this))) {
-    ImageCtx::get_work_queue(m_cct, &m_work_queue);
+    ImageCtx::get_work_queue(io_ctx, &m_work_queue);
   }
 
   ~QuiesceWatchers() {
@@ -423,7 +423,7 @@ ImageState<I>::ImageState(I *image_ctx)
     m_lock(ceph::make_mutex(util::unique_lock_name("librbd::ImageState::m_lock", this))),
     m_last_refresh(0), m_refresh_seq(0),
     m_update_watchers(new ImageUpdateWatchers(image_ctx->cct)),
-    m_quiesce_watchers(new QuiesceWatchers(image_ctx->cct)) {
+    m_quiesce_watchers(new QuiesceWatchers(image_ctx->md_ctx)) {
 }
 
 template <typename I>

@@ -666,7 +666,6 @@ int Image<I>::deep_copy(I *src, librados::IoCtx& dest_md_ctx,
 template <typename I>
 int Image<I>::deep_copy(I *src, I *dest, bool flatten,
                         ProgressContext &prog_ctx) {
-  CephContext *cct = src->cct;
   librados::snap_t snap_id_start = 0;
   librados::snap_t snap_id_end;
   {
@@ -675,7 +674,7 @@ int Image<I>::deep_copy(I *src, I *dest, bool flatten,
   }
 
   asio::ContextWQ *op_work_queue;
-  ImageCtx::get_work_queue(cct, &op_work_queue);
+  ImageCtx::get_work_queue(src->md_ctx, &op_work_queue);
 
   C_SaferCond cond;
   SnapSeqs snap_seqs;
@@ -825,7 +824,7 @@ int Image<I>::remove(IoCtx& io_ctx, const std::string &image_name,
   }
 
   asio::ContextWQ *op_work_queue;
-  ImageCtx::get_work_queue(cct, &op_work_queue);
+  ImageCtx::get_work_queue(io_ctx, &op_work_queue);
 
   // might be a V1 image format that cannot be moved to the trash
   // and would not have been listed in the V2 directory -- or the OSDs

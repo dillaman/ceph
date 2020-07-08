@@ -836,7 +836,7 @@ int Migration<I>::abort() {
     ceph_assert(dst_image_ctx->ignore_migrating);
 
     asio::ContextWQ *op_work_queue;
-    ImageCtx::get_work_queue(m_cct, &op_work_queue);
+    ImageCtx::get_work_queue(m_dst_io_ctx, &op_work_queue);
     C_SaferCond on_remove;
     auto req = librbd::image::RemoveRequest<>::create(
       m_dst_io_ctx, dst_image_ctx, false, false, *m_prog_ctx, op_work_queue,
@@ -1219,7 +1219,7 @@ int Migration<I>::create_dst_image() {
   }
 
   asio::ContextWQ *op_work_queue;
-  ImageCtx::get_work_queue(m_cct, &op_work_queue);
+  ImageCtx::get_work_queue(m_dst_io_ctx, &op_work_queue);
 
   ConfigProxy config{m_cct->_conf};
   api::Config<I>::apply_pool_overrides(m_dst_io_ctx, &config);
@@ -1760,7 +1760,7 @@ int Migration<I>::remove_src_image() {
   ceph_assert(m_src_image_ctx->ignore_migrating);
 
   asio::ContextWQ *op_work_queue;
-  ImageCtx::get_work_queue(m_cct, &op_work_queue);
+  ImageCtx::get_work_queue(m_src_io_ctx, &op_work_queue);
   C_SaferCond on_remove;
   auto req = librbd::image::RemoveRequest<I>::create(
       m_src_io_ctx, m_src_image_ctx, false, true, *m_prog_ctx, op_work_queue,

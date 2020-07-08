@@ -1941,7 +1941,7 @@ int Mirror<I>::image_info_list(
     }
 
     asio::ContextWQ *op_work_queue;
-    ImageCtx::get_work_queue(cct, &op_work_queue);
+    ImageCtx::get_work_queue(io_ctx, &op_work_queue);
 
     for (auto &it : images) {
       auto &image_id = it.first;

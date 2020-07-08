@@ -685,7 +685,7 @@ int validate_pool(IoCtx &io_ctx, CephContext *cct) {
       r = create_v1(io_ctx, image_name.c_str(), size, order);
     } else {
       asio::ContextWQ *op_work_queue;
-      ImageCtx::get_work_queue(cct, &op_work_queue);
+      ImageCtx::get_work_queue(io_ctx, &op_work_queue);
 
       ConfigProxy config{cct->_conf};
       api::Config<>::apply_pool_overrides(io_ctx, &config);
@@ -790,7 +790,7 @@ int validate_pool(IoCtx &io_ctx, CephContext *cct) {
     api::Config<>::apply_pool_overrides(c_ioctx, &config);
 
     asio::ContextWQ *op_work_queue;
-    ImageCtx::get_work_queue(cct, &op_work_queue);
+    ImageCtx::get_work_queue(c_ioctx, &op_work_queue);
 
     C_SaferCond cond;
     auto *req = image::CloneRequest<>::create(

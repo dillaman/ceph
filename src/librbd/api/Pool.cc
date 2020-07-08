@@ -252,7 +252,7 @@ int Pool<I>::init(librados::IoCtx& io_ctx, bool force) {
   }
 
   asio::ContextWQ *op_work_queue;
-  ImageCtx::get_work_queue(cct, &op_work_queue);
+  ImageCtx::get_work_queue(io_ctx, &op_work_queue);
 
   C_SaferCond ctx;
   auto req = image::ValidatePoolRequest<I>::create(io_ctx, op_work_queue, &ctx);

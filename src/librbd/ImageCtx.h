@@ -345,9 +345,10 @@ namespace librbd {
     void set_journal_policy(journal::Policy *policy);
 
     static AsioEngine* get_asio_engine(CephContext* cct);
-    static void get_work_queue(CephContext *cct,
+
+    static void get_work_queue(librados::IoCtx& io_ctx,
                                asio::ContextWQ **op_work_queue);
-    static void get_timer_instance(CephContext *cct, SafeTimer **timer,
+    static void get_timer_instance(CephContext* cct, SafeTimer **timer,
                                    ceph::mutex **timer_lock);
   };
 }
