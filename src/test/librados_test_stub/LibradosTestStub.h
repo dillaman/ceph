@@ -11,6 +11,7 @@ namespace librados {
 
 class MockTestMemIoCtxImpl;
 class TestCluster;
+class TestClassHandler;
 
 MockTestMemIoCtxImpl &get_mock_io_ctx(IoCtx &ioctx);
 
@@ -22,6 +23,8 @@ typedef boost::shared_ptr<librados::TestCluster> TestClusterRef;
 
 void set_cluster(TestClusterRef cluster);
 TestClusterRef get_cluster();
+
+librados::TestClassHandler* get_class_handler();
 
 } // namespace librados_test_stub
 
