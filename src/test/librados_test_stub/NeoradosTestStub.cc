@@ -526,3 +526,16 @@ void RADOS::execute(const Object& o, const IOContext& ioc, WriteOp&& op,
 }
 
 } // namespace neorados
+
+namespace librados {
+
+MockTestMemIoCtxImpl& get_mock_io_ctx(neorados::RADOS& rados,
+                                      neorados::IOContext& io_context) {
+  auto& impl = *reinterpret_cast<std::unique_ptr<neorados::detail::Client>*>(
+    &rados);
+  auto io_ctx = impl->get_io_ctx(io_context);
+  ceph_assert(io_ctx != nullptr);
+  return *reinterpret_cast<MockTestMemIoCtxImpl*>(io_ctx);
+}
+
+} // namespace librados

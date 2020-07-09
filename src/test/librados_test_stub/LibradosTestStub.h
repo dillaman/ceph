@@ -7,6 +7,11 @@
 #include "include/rados/librados_fwd.hpp"
 #include <boost/shared_ptr.hpp>
 
+namespace neorados {
+struct IOContext;
+struct RADOS;
+} // namespace neorados
+
 namespace librados {
 
 class MockTestMemIoCtxImpl;
@@ -14,6 +19,8 @@ class TestCluster;
 class TestClassHandler;
 
 MockTestMemIoCtxImpl &get_mock_io_ctx(IoCtx &ioctx);
+MockTestMemIoCtxImpl &get_mock_io_ctx(neorados::RADOS& rados,
+                                      neorados::IOContext& io_context);
 
 } // namespace librados
 
