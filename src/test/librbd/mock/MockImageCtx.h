@@ -222,7 +222,7 @@ struct MockImageCtx {
   MOCK_CONST_METHOD0(get_stripe_period, uint64_t());
 
   MOCK_METHOD0(rebuild_data_io_context, void());
-  MOCK_CONST_METHOD0(get_data_io_context, IOContext());
+  IOContext get_data_io_context();
 
   static void set_timer_instance(MockSafeTimer *timer, ceph::mutex *timer_lock);
   static void get_timer_instance(CephContext *cct, MockSafeTimer **timer,
