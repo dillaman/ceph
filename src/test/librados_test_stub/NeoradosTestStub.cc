@@ -255,6 +255,7 @@ Op::Op() {
   static_assert(Op::impl_size >= sizeof(librados::TestObjectOperationImpl*));
   auto& o = *reinterpret_cast<librados::TestObjectOperationImpl**>(&impl);
   o = new librados::TestObjectOperationImpl();
+  o->get();
 }
 
 Op::~Op() {
