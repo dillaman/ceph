@@ -5,6 +5,7 @@ RBD support module
 import errno
 import rados
 import rbd
+import threading
 import traceback
 
 from mgr_module import MgrModule
@@ -148,6 +149,21 @@ class Module(MgrModule):
         {'name': MirrorSnapshotScheduleHandler.MODULE_OPTION_NAME_MAX_CONCURRENT_SNAP_CREATE, 'type': 'int', 'default': 10},
         {'name': TrashPurgeScheduleHandler.MODULE_OPTION_NAME},
     ]
+
+    _lock = threading.Lock()
+    _rados_full_try = None
+
+    @property
+    def rados_full_try(self):
+        if not self._rados_full_try:
+            with _lock:
+                if not self._rados_full_try:
+                    # second librados instance which permits deletions on a
+                    # near-full cluster
+                    _rados_full_try = self.create_rados()
+                    _rados_full_try.set_osdmap_full_try()
+                    _rados_full_try.wait_for_latest_osdmap()
+        return self._rados_full_try
 
     mirror_snapshot_schedule = None
     perf = None
