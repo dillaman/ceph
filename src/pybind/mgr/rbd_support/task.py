@@ -195,9 +195,10 @@ class TaskHandler:
                 ex, traceback.format_exc()))
 
     @contextmanager
-    def open_ioctx(self, spec):
+    def open_ioctx(self, spec, full_try=False):
         try:
-            with self.module.rados.open_ioctx(spec[0]) as ioctx:
+            cluster = self.module.rados_full_try if full_try else self.module.rados
+            with cluster.open_ioctx(spec[0]) as ioctx:
                 ioctx.set_namespace(spec[1])
                 yield ioctx
         except rados.ObjectNotFound:
@@ -332,7 +333,8 @@ class TaskHandler:
         try:
             with rados.WriteOpCtx() as write_op:
                 ioctx.remove_omap_keys(write_op, omap_keys)
-                ioctx.operate_write_op(write_op, RBD_TASK_OID)
+                ioctx.operate_write_op(write_op, RBD_TASK_OID,
+                                       flags = rados.LIBRADOS_OPERATION_FULL_TRY)
         except rados.ObjectNotFound:
             pass
 
@@ -357,11 +359,15 @@ class TaskHandler:
 
         pool_valid = False
         try:
+            action = task.refs[TASK_REF_ACTION]
+            try_full_action = {TASK_REF_ACTION_REMOVE: True,
+                               TASK_REF_ACTION_TRASH_REMOVE: True
+                               }.get(action, False)
             with self.open_ioctx((task.refs[TASK_REF_POOL_NAME],
-                                  task.refs[TASK_REF_POOL_NAMESPACE])) as ioctx:
+                                  task.refs[TASK_REF_POOL_NAMESPACE]),
+                                 full_try=try_full_action) as ioctx:
                 pool_valid = True
 
-                action = task.refs[TASK_REF_ACTION]
                 execute_fn = {TASK_REF_ACTION_FLATTEN: self.execute_flatten,
                               TASK_REF_ACTION_REMOVE: self.execute_remove,
                               TASK_REF_ACTION_TRASH_REMOVE: self.execute_trash_remove,

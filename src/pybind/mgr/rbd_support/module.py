@@ -156,13 +156,20 @@ class Module(MgrModule):
     @property
     def rados_full_try(self):
         if not self._rados_full_try:
-            with _lock:
+            with self._lock:
                 if not self._rados_full_try:
                     # second librados instance which permits deletions on a
                     # near-full cluster
-                    _rados_full_try = self.create_rados()
-                    _rados_full_try.set_osdmap_full_try()
-                    _rados_full_try.wait_for_latest_osdmap()
+                    rados_full_try = self.create_rados()
+                    rados_full_try.wait_for_latest_osdmap()
+
+                    # the property is global for the connection but is set via
+                    # the IoCtx for some reason
+                    pools = rados_full_try.list_pools() + [""]
+                    with rados_full_try.open_ioctx(pools[0]) as ioctx:
+                        ioctx.set_osdmap_full_try()
+
+                    self._rados_full_try = rados_full_try
         return self._rados_full_try
 
     mirror_snapshot_schedule = None
