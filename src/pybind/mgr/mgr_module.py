@@ -1530,6 +1530,16 @@ class MgrModule(ceph_module.BaseMgrModule, MgrModuleLoggingMixin):
     def clear_all_progress_events(self):
         return self._ceph_clear_all_progress_events()
 
+    def create_rados(self):
+        """
+        Create a new librados instance using the MGR context
+        """
+        ctx_capsule = self.get_context()
+        cluster = rados.Rados(context=ctx_capsule)
+        cluster.connect()
+        self._ceph_register_client(cluster.get_addrs())
+        return cluster
+
     @property
     def rados(self):
         """
@@ -1539,10 +1549,7 @@ class MgrModule(ceph_module.BaseMgrModule, MgrModuleLoggingMixin):
         if self._rados:
             return self._rados
 
-        ctx_capsule = self.get_context()
-        self._rados = rados.Rados(context=ctx_capsule)
-        self._rados.connect()
-        self._ceph_register_client(self._rados.get_addrs())
+        self._rados = self.create_rados()
         return self._rados
 
     @staticmethod
