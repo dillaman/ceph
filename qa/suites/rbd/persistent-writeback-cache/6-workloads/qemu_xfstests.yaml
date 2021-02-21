@@ -1,3 +1,10 @@
+overrides:
+  ceph:
+    conf:
+      client:
+        debug rbd: 20
+        debug rbd_pwl: 15
+        log to stderr: false
 tasks:
 - qemu:
     client.0:
