@@ -7,6 +7,8 @@
 #include "common/errno.h"
 #include "librbd/ImageCtx.h"
 #include "librbd/Utils.h"
+#include "librbd/crypto/ShutDownCryptoRequest.h"
+#include "librbd/crypto/Utils.h"
 #include "librbd/io/ObjectDispatcherInterface.h"
 
 #define dout_subsys ceph_subsys_rbd
@@ -29,20 +31,6 @@ FormatRequest<I>::FormatRequest(
 
 template <typename I>
 void FormatRequest<I>::send() {
-  if (m_image_ctx->io_object_dispatcher->exists(
-          io::OBJECT_DISPATCH_LAYER_CRYPTO)) {
-    lderr(m_image_ctx->cct) << "cannot format with already loaded encryption"
-                            << dendl;
-    finish(-EEXIST);
-    return;
-  }
-
-  if (m_image_ctx->parent != nullptr) {
-    lderr(m_image_ctx->cct) << "cannot format a cloned image" << dendl;
-    finish(-ENOTSUP);
-    return;
-  }
-
   if (m_image_ctx->test_features(RBD_FEATURE_JOURNALING)) {
     lderr(m_image_ctx->cct) << "cannot use encryption with journal" << dendl;
     finish(-ENOTSUP);
@@ -50,12 +38,35 @@ void FormatRequest<I>::send() {
   }
 
   auto ctx = create_context_callback<
-          FormatRequest<I>, &FormatRequest<I>::finish>(this);
+          FormatRequest<I>, &FormatRequest<I>::handle_format>(this);
   m_format->format(m_image_ctx, ctx);
 }
 
 template <typename I>
+void FormatRequest<I>::handle_format(int r) {
+  if (r != 0) {
+    lderr(m_image_ctx->cct) << "unable to format image: " << cpp_strerror(r)
+                            << dendl;
+    finish(r);
+    return;
+  }
+
+  if (m_image_ctx->crypto == nullptr) {
+    finish(0);
+    return;
+  }
+
+  auto ctx = create_context_callback<
+        FormatRequest<I>, &FormatRequest<I>::finish>(this);
+  auto *req = ShutDownCryptoRequest<I>::create(m_image_ctx, ctx);
+  req->send();
+}
+
+template <typename I>
 void FormatRequest<I>::finish(int r) {
+  if (r == 0) {
+    util::set_crypto(m_image_ctx, m_format->get_crypto());
+  }
   m_on_finish->complete(r);
   delete this;
 }

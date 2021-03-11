@@ -27,6 +27,7 @@ public:
     FormatRequest(I* image_ctx, std::unique_ptr<EncryptionFormat<I>> format,
                   Context* on_finish);
     void send();
+    void handle_format(int r);
     void finish(int r);
 
 private:
