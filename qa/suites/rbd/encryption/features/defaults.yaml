@@ -3,3 +3,5 @@ overrides:
     conf:
       client:
         rbd default features: 61
+        debug rbd: 19
+        log to stderr: false
